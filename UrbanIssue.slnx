@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="UrbanIssue.API/UrbanIssue.API.csproj" />
+  <Project Path="UrbanIssue.Application/UrbanIssue.Application.csproj" />
+  <Project Path="UrbanIssue.Domain/UrbanIssue.Domain.csproj" />
+  <Project Path="UrbanIssue.Infrastructure.Sqlserver/UrbanIssue.Infrastructure.Sqlserver.csproj" />
+</Solution>

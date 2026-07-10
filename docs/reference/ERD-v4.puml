@@ -1,0 +1,553 @@
+@startuml erd-urban-infrastructure-issue-system-v4
+
+skinparam linetype ortho
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam class {
+  BackgroundColor White
+  BorderColor #666666
+  ArrowColor #666666
+  FontSize 12
+}
+
+' =====================================================
+' ERD - Urban Infrastructure Issue Reporting System
+' v4 - .NET 10 + React (Frontend) + Clean Architecture + EF Core
+' =====================================================
+
+entity "Role" as Role {
+  * Id : int <<PK>>
+  --
+  Name : varchar(50) <<UK>>
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "User" as User {
+  * Id : guid <<PK>>
+  --
+  FullName : nvarchar(100)
+  Email : varchar(150) <<UK>>
+  PasswordHash : varchar(255)
+  PhoneNumber : varchar(20)?
+  RoleId : int <<FK>>
+  DepartmentId : int? <<FK>>
+  IsActive : bit
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "RefreshToken" as RefreshToken {
+  * Id : int <<PK>>
+  --
+  UserId : guid <<FK>>
+  TokenHash : varchar(255) <<UK>>
+  ExpiresAt : datetime
+  RevokedAt : datetime?
+  CreatedAt : datetime
+}
+
+entity "Category" as Category {
+  * Id : int <<PK>>
+  --
+  Name : nvarchar(100) <<UK>>
+  Description : text?
+  IsActive : bit
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "Area" as Area {
+  * Id : int <<PK>>
+  --
+  Name : nvarchar(100)
+  ParentAreaId : int? <<FK>>
+  Code : varchar(20)?
+  IsActive : bit
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "Department" as Department {
+  * Id : int <<PK>>
+  --
+  Name : nvarchar(150) <<UK>>
+  Description : text?
+  IsActive : bit
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "RoutingRule" as RoutingRule {
+  * Id : int <<PK>>
+  --
+  CategoryId : int <<FK>>
+  AreaId : int <<FK>>
+  DepartmentId : int <<FK>>
+  PriorityOrder : int
+  IsActive : bit
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "SLAConfig" as SLAConfig {
+  * Id : int <<PK>>
+  --
+  CategoryId : int <<FK>>
+  Priority : varchar(20)
+  DurationHours : int
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+}
+
+entity "Report" as Report {
+  * Id : guid <<PK>>
+  --
+  CitizenId : guid <<FK>>
+  CategoryId : int <<FK>>
+  AreaId : int <<FK>>
+  DepartmentId : int? <<FK>>
+  AssignedStaffId : guid? <<FK>>
+  SLAConfigId : int? <<FK>>
+
+  Description : nvarchar(max)
+  AddressText : nvarchar(255)?
+  Latitude : decimal(9,6)
+  Longitude : decimal(9,6)
+
+  Priority : varchar(20)?
+  Status : varchar(20)
+
+  SLAStartedAt : datetime?
+  AppliedSLAHours : int?
+  DueAt : datetime?
+
+  SLAWarningSentAt : datetime?
+  SLABreachedNotifiedAt : datetime?
+  IsEscalated : bit
+  EscalatedAt : datetime?
+
+  RequiresManualAssignment : bit
+
+  CreatedAt : datetime
+  UpdatedAt : datetime?
+  AcceptedAt : datetime?
+  ResolvedAt : datetime?
+  ClosedAt : datetime?
+
+  RejectedAt : datetime?
+  RejectedByUserId : guid? <<FK>>
+  RejectedReason : nvarchar(max)?
+
+  ReopenedAt : datetime?
+  ReopenedByUserId : guid? <<FK>>
+  ReopenReason : nvarchar(max)?
+}
+
+entity "ReportImage" as ReportImage {
+  * Id : int <<PK>>
+  --
+  ReportId : guid <<FK>>
+  ImageUrl : varchar(500)
+  UploadedAt : datetime
+}
+
+entity "StatusUpdate" as StatusUpdate {
+  * Id : int <<PK>>
+  --
+  ReportId : guid <<FK>>
+  UpdatedByUserId : guid? <<FK>>
+  OldStatus : varchar(20)
+  NewStatus : varchar(20)
+  Note : nvarchar(max)
+  CreatedAt : datetime
+}
+
+entity "StatusUpdateImage" as StatusUpdateImage {
+  * Id : int <<PK>>
+  --
+  StatusUpdateId : int <<FK>>
+  ImageUrl : varchar(500)
+}
+
+entity "Upvote" as Upvote {
+  * Id : int <<PK>>
+  --
+  ReportId : guid <<FK>>
+  UserId : guid <<FK>>
+  CreatedAt : datetime
+}
+
+entity "Comment" as Comment {
+  * Id : int <<PK>>
+  --
+  ReportId : guid <<FK>>
+  UserId : guid <<FK>>
+  Content : nvarchar(max)
+  IsComplaint : bit
+  CreatedAt : datetime
+}
+
+
+entity "Notification" as Notification {
+  * Id : int <<PK>>
+  --
+  UserId : guid <<FK>>
+  ReportId : guid? <<FK>>
+  Type : varchar(30)
+  Title : nvarchar(200)
+  Message : nvarchar(max)
+  IsRead : bit
+  ReadAt : datetime?
+  CreatedAt : datetime
+}
+
+entity "AuditLog" as AuditLog {
+  * Id : int <<PK>>
+  --
+  UserId : guid? <<FK>>
+  Action : varchar(100)
+  EntityType : varchar(50)
+  EntityId : varchar(50)
+  Detail : text
+  CreatedAt : datetime
+}
+
+' ===== Relationships =====
+Role ||--o{ User : "has role"
+Department ||--o{ User : "employs"
+User ||--o{ RefreshToken : "owns"
+
+Category ||--o{ RoutingRule : "routes by category"
+Area ||--o{ RoutingRule : "routes by area"
+Department ||--o{ RoutingRule : "receives routed reports"
+
+Category ||--o{ SLAConfig : "defines SLA"
+SLAConfig ||--o{ Report : "applied SLA"
+
+Category ||--o{ Report : "classifies"
+Area ||--o{ Report : "located in"
+Department ||--o{ Report : "currently routed to"
+User ||--o{ Report : "creates (Citizen)"
+User ||--o{ Report : "currently assigned (Staff)"
+User ||--o{ Report : rejects
+User ||--o{ Report : reopens
+
+Report ||--o{ ReportImage : "has images"
+Report ||--o{ StatusUpdate : "has status history"
+User ||--o{ StatusUpdate : "performs update"
+StatusUpdate ||--o{ StatusUpdateImage : "has proof images"
+
+Report ||--o{ Upvote : "receives"
+User ||--o{ Upvote : "gives"
+
+Report ||--o{ Comment : "has comments"
+User ||--o{ Comment : "writes"
+
+User ||--o{ Notification : "receives"
+Report ||--o{ Notification : "triggers"
+
+User ||--o{ AuditLog : "performs action"
+
+Area ||--o{ Area : "parent area"
+
+note right of Report
+  ReportStatus:
+  - Moi          (New)
+  - DaPhanCong   (Assigned)
+  - DaTiepNhan   (Accepted)
+  - DangXuLy     (InProgress)
+  - DaXuLy       (Resolved)
+  - DaDong       (Closed)
+  - TuChoi       (Rejected) 
+
+  ReportPriority:
+  - Low
+  - Medium
+  - High
+
+  AppliedSLAHours stores the SLA duration copied
+  from SLAConfig.DurationHours at acceptance time.
+
+  DueAt = SLAStartedAt + AppliedSLAHours.
+
+  Later changes to SLAConfig do not affect
+  old accepted reports.
+
+  Reopen flow:
+  - DaXuLy -> DangXuLy is allowed only when Admin accepts a valid complaint.
+  - Admin must enter ReopenReason.
+  - System sets ReopenedAt and ReopenedByUserId.
+  - System clears ResolvedAt so the report will wait for a new resolution.
+  - SLA is not recalculated in MVP.
+end note
+
+note right of RoutingRule
+  PriorityOrder:
+  - Số càng nhỏ thì ưu tiên càng cao.
+  - Khi nhiều rule cùng khớp Category + Area,
+    hệ thống chọn rule active có PriorityOrder nhỏ nhất.
+  - Nếu không có rule phù hợp hoặc dữ liệu ưu tiên bị trùng,
+    báo cáo chuyển sang Admin phân công thủ công.
+end note
+
+note right of ReportImage
+  ReportImage stores images uploaded when a citizen creates a report.
+  A report may have 0..many images.
+  ReportId is required because every image must belong to one report.
+end note
+
+note right of Comment
+  MVP:
+  - Comment is mainly used for complaints after resolution.
+  - Free discussion/commenting is not implemented in MVP.
+  - IsComplaint = true means this record is a complaint.
+
+  Valid complaint rules:
+  - Only the Citizen who created the report can complain.
+  - Report.Status must be DaXuLy.
+  - Complaint must be submitted within 7 days after ResolvedAt.
+  - Content is required.
+  - Each report can have at most one valid complaint.
+
+  Enforcement:
+  - Database enforces one complaint per report by:
+    UNIQUE ReportId WHERE IsComplaint = true.
+  - Service enforces owner, status, time-window, and content rules.
+
+  If a valid complaint exists,
+  the report will not be auto-closed after 7 days.
+end note
+
+note right of SLAConfig
+Priority values in DB/API:
+- Low
+- Medium
+- High
+
+UI labels:
+- Low = Thấp
+- Medium = Trung bình
+- High = Cao
+end note
+
+note right of StatusUpdate
+  StatusUpdate stores both:
+  - status changes
+  - progress notes
+
+  Case 1: Status change
+  Example:
+  OldStatus = DaTiepNhan
+  NewStatus = DangXuLy
+  Note = null or optional note
+
+  Case 2: Progress note only
+  If Staff only adds a progress note without changing status:
+  - OldStatus = current status
+  - NewStatus = current status
+  - Note = progress note content
+
+  Example:
+  OldStatus = DangXuLy
+  NewStatus = DangXuLy
+  Note = "Checked the location, waiting for materials."
+
+  Service rules:
+  - Note is required when NewStatus = DaXuLy.
+  - At least one StatusUpdateImage is required when NewStatus = DaXuLy.
+  - UpdatedByUserId can be null only for automatic system jobs,
+    such as auto-closing a report after 7 days.
+end note
+
+note bottom
+  =========================
+  DATA INTEGRITY CONSTRAINTS
+  =========================
+
+  These constraints are enforced at DATABASE level
+  by Primary Key, Foreign Key, Unique Constraint,
+  Filtered Unique Index, or Check Constraint.
+
+  Recommended unique constraints:
+  - User.Email
+  - Role.Name
+  - RefreshToken.TokenHash
+  - Category.Name
+  - Department.Name
+  - SLAConfig(CategoryId, Priority)
+  - Upvote(ReportId, UserId)
+  - RoutingRule(CategoryId, AreaId, DepartmentId)
+
+  Recommended filtered unique indexes:
+  - Area.Code WHERE Code IS NOT NULL
+  - Comment.ReportId WHERE IsComplaint = 1
+
+  Recommended check constraints:
+  - SLAConfig.DurationHours > 0
+  - RoutingRule.PriorityOrder > 0
+  - Report.Latitude BETWEEN -90 AND 90
+  - Report.Longitude BETWEEN -180 AND 180
+
+  Recommended indexes:
+  - RoutingRule(CategoryId, AreaId, PriorityOrder)
+  - Report(Status, CreatedAt)
+  - Report(CategoryId, AreaId, Status)
+  - Report(DepartmentId, Status, DueAt)
+  - Report(RequiresManualAssignment, CreatedAt)
+  - Report(SLAStartedAt, DueAt, Status)
+  - Report(Latitude, Longitude)
+  - Notification(UserId, IsRead, CreatedAt)
+  - AuditLog(CreatedAt)
+  - AuditLog(EntityType, EntityId)
+
+
+  =========================
+  BUSINESS RULES IN SERVICE
+  =========================
+
+  The following rules are business rules.
+  They are documented in the ERD/Data Dictionary,
+  but they must be enforced in the Service layer,
+  not only by the database.
+
+  User / Role rules:
+  - Citizen and Admin must have DepartmentId = null.
+  - Staff must have a valid DepartmentId.
+  - Inactive users cannot log in or perform actions.
+
+  Report creation rules:
+  - Citizen must log in before creating a report.
+  - CategoryId must exist and Category.IsActive = true.
+  - AreaId must exist and Area.IsActive = true.
+  - Latitude and Longitude are selected from the map.
+  - AreaId is selected from dropdown in MVP.
+  - Reverse-geocode is only a future extension.
+
+  Routing rules:
+  - System routes report by active RoutingRule(CategoryId, AreaId).
+  - If no active rule is found:
+    Status = Moi,
+    DepartmentId = null,
+    RequiresManualAssignment = true.
+  - If multiple active rules exist, choose the smallest PriorityOrder.
+  - If multiple rules share the same smallest PriorityOrder:
+    move report to manual assignment queue.
+  - Report can move to DaPhanCong only when DepartmentId is valid.
+
+  Staff processing rules:
+  - Staff can only view reports of their own Department.
+  - Staff can only accept reports assigned to their Department.
+  - When a Staff accepts a report:
+    AssignedStaffId = current Staff,
+    Status = DaTiepNhan,
+    SLAStartedAt = now,
+    AppliedSLAHours = SLAConfig.DurationHours,
+    DueAt = SLAStartedAt + AppliedSLAHours.
+  - If SLAConfig(CategoryId, Priority) does not exist,
+    the report cannot be accepted.
+
+  Status flow rules:
+  - Normal flow:
+    Moi -> DaPhanCong -> DaTiepNhan -> DangXuLy -> DaXuLy -> DaDong.
+  - No skipping status steps.
+  - No moving backward unless Admin performs a manual intervention.
+  - TuChoi and DaDong are terminal statuses.
+  - Rejected or Closed reports cannot be processed further.
+  - When changing to DaXuLy:
+    Note is required,
+    at least one StatusUpdateImage is required,
+    ResolvedAt must be set.
+
+  Rejection rules:
+  - Only Admin can reject a report.
+  - Admin can reject only when current status is:
+    Moi, DaPhanCong, DaTiepNhan, or DangXuLy.
+  - Admin cannot reject reports with status:
+    DaXuLy, DaDong, or TuChoi.
+  - RejectedReason is required when Status = TuChoi.
+  - RejectedAt and RejectedByUserId must be set.
+
+  Upvote rules:
+  - Citizen cannot upvote their own report.
+  - Citizen can upvote a report only once.
+  - Reports with Status = TuChoi or DaDong cannot be upvoted.
+  - Database enforces one upvote per user per report
+    by UNIQUE(ReportId, UserId).
+  - Service enforces "cannot upvote own report".
+
+  Complaint rules:
+  - Only the Citizen who created the report can submit a complaint.
+  - Complaint is allowed only when Report.Status = DaXuLy.
+  - Complaint must be created within 7 days after ResolvedAt.
+  - Complaint content cannot be empty.
+  - Each report can have at most one valid complaint.
+  - Database enforces this by filtered unique index:
+    Comment.ReportId WHERE IsComplaint = 1.
+  - Service enforces user, status, time-window, and content checks.
+
+  SLA warning / escalation rules:
+  - SLA job only checks reports with status:
+    DaTiepNhan or DangXuLy.
+  - SLAWarning is created only once when remaining SLA time <= 20%.
+  - SLABreached is created only once when current time > DueAt.
+  - Escalation is created only once when current time >
+    SLAStartedAt + AppliedSLAHours * 150%.
+  - SLAWarningSentAt, SLABreachedNotifiedAt,
+    IsEscalated, and EscalatedAt are used to prevent duplicate notifications.
+
+  Auto-close rules:
+  - Background job can close a report after 7 days from ResolvedAt.
+  - It only applies when Status = DaXuLy.
+  - It only closes the report if there is no valid complaint.
+  - When auto-closing:
+    Status = DaDong,
+    ClosedAt = now,
+    UpdatedByUserId in StatusUpdate = null.
+
+
+  =========================
+  EF CORE / SQL SERVER NOTES
+  =========================
+
+  Because many foreign keys point to User and Report,
+  configure DeleteBehavior.Restrict for most relationships
+  to avoid SQL Server "multiple cascade paths" errors.
+
+  Recommended Restrict relationships:
+  - Report.AssignedStaffId -> User.Id
+  - Report.RejectedByUserId -> User.Id
+  - Report.ReopenedByUserId -> User.Id, if Reopen is kept
+  - StatusUpdate.UpdatedByUserId -> User.Id
+  - Upvote.UserId -> User.Id
+  - Comment.UserId -> User.Id
+  - Notification.UserId -> User.Id
+  - AuditLog.UserId -> User.Id
+
+  Area.Code is nullable, so use filtered unique index:
+  CREATE UNIQUE INDEX UX_Area_Code
+  ON Area(Code)
+  WHERE Code IS NOT NULL;
+
+  Comment complaint uniqueness:
+  CREATE UNIQUE INDEX UX_Comment_Report_Complaint
+  ON Comment(ReportId)
+  WHERE IsComplaint = 1;
+
+
+  =========================
+  OUT OF CURRENT MVP SCOPE
+  =========================
+
+  These features are not required for the MVP
+  and can be implemented later if Sprint 3 still has time:
+
+  - AssignmentHistory
+  - EscalationLog
+  - Department Manager role
+  - Public API rate limiting
+  - Reverse-geocode auto-detection
+  - Advanced map clustering
+end note
+
+@enduml
