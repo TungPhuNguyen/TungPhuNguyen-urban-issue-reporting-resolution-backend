@@ -13,9 +13,12 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.9" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../UrbanIssue.Domain/UrbanIssue.Domain.csproj" />
+    <ProjectReference Include="..\UrbanIssue.Application\UrbanIssue.Application.csproj" />
   </ItemGroup>
 </Project>

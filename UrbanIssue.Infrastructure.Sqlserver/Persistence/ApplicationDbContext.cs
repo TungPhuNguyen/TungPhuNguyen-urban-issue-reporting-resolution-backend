@@ -1,73 +1,73 @@
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Domain.Entities;
 
-namespace UrbanIssue.Infrastructure.Sqlserver.Persistence
+namespace UrbanIssue.Infrastructure.Sqlserver.Persistence;
+
+public sealed class ApplicationDbContext
+    : DbContext,
+      IApplicationDbContext
 {
-    public sealed class ApplicationDbContext
-    : DbContext
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options)
+        : base(options)
     {
-        public ApplicationDbContext(
-            DbContextOptions<ApplicationDbContext> options)
-            : base(options)
-        {
-        }
+    }
 
-        public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Role> Roles
+        => Set<Role>();
 
-        public DbSet<User> Users => Set<User>();
+    public DbSet<User> Users
+        => Set<User>();
 
-        public DbSet<RefreshToken> RefreshTokens
-            => Set<RefreshToken>();
+    public DbSet<RefreshToken> RefreshTokens
+        => Set<RefreshToken>();
 
-        public DbSet<Category> Categories
-            => Set<Category>();
+    public DbSet<Category> Categories
+        => Set<Category>();
 
-        public DbSet<Area> Areas
-            => Set<Area>();
+    public DbSet<Area> Areas
+        => Set<Area>();
 
-        public DbSet<Department> Departments
-            => Set<Department>();
+    public DbSet<Department> Departments
+        => Set<Department>();
 
-        public DbSet<RoutingRule> RoutingRules
-            => Set<RoutingRule>();
+    public DbSet<RoutingRule> RoutingRules
+        => Set<RoutingRule>();
 
-        public DbSet<SLAConfig> SLAConfigs
-            => Set<SLAConfig>();
+    public DbSet<SLAConfig> SLAConfigs
+        => Set<SLAConfig>();
 
-        public DbSet<Report> Reports
-            => Set<Report>();
+    public DbSet<Report> Reports
+        => Set<Report>();
 
-        public DbSet<ReportImage> ReportImages
-            => Set<ReportImage>();
+    public DbSet<ReportImage> ReportImages
+        => Set<ReportImage>();
 
-        public DbSet<StatusUpdate> StatusUpdates
-            => Set<StatusUpdate>();
+    public DbSet<StatusUpdate> StatusUpdates
+        => Set<StatusUpdate>();
 
-        public DbSet<StatusUpdateImage> StatusUpdateImages
-            => Set<StatusUpdateImage>();
+    public DbSet<StatusUpdateImage> StatusUpdateImages
+        => Set<StatusUpdateImage>();
 
-        public DbSet<Upvote> Upvotes
-            => Set<Upvote>();
+    public DbSet<Upvote> Upvotes
+        => Set<Upvote>();
 
-        public DbSet<Comment> Comments
-            => Set<Comment>();
+    public DbSet<Comment> Comments
+        => Set<Comment>();
 
-        public DbSet<Notification> Notifications
-            => Set<Notification>();
+    public DbSet<Notification> Notifications
+        => Set<Notification>();
 
-        public DbSet<AuditLog> AuditLogs
-            => Set<AuditLog>();
+    public DbSet<AuditLog> AuditLogs
+        => Set<AuditLog>();
 
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
 
-            modelBuilder.ApplyConfigurationsFromAssembly(
-                typeof(ApplicationDbContext).Assembly);
-        }
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(ApplicationDbContext).Assembly);
     }
 }
