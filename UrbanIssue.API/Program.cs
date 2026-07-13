@@ -1,7 +1,10 @@
 using System.Text.Json.Serialization;
+using UrbanIssue.Infrastructure.Sqlserver;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddInfrastructure(
+    builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
