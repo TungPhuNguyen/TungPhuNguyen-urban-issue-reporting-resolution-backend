@@ -4,6 +4,8 @@ using UrbanIssue.API.Extensions;
 using UrbanIssue.API.OpenApi;
 using UrbanIssue.Application;
 using UrbanIssue.Infrastructure.Sqlserver;
+using UrbanIssue.Application.Common.Settings;
+
 
 var builder =
     WebApplication.CreateBuilder(args);
@@ -45,6 +47,18 @@ builder.Services.AddOpenApi(
             .AddOperationTransformer<
                 BearerSecurityOperationTransformer>();
     });
+builder.Services
+    .AddOptions<DefaultSlaSettings>()
+    .Bind(
+        builder.Configuration.GetRequiredSection(
+            DefaultSlaSettings.SectionName))
+    .Validate(
+        settings =>
+            settings.LowHours > 0
+            && settings.MediumHours > 0
+            && settings.HighHours > 0,
+        "Thời gian SLA mặc định phải lớn hơn 0.")
+    .ValidateOnStart();
 
 var app =
     builder.Build();
