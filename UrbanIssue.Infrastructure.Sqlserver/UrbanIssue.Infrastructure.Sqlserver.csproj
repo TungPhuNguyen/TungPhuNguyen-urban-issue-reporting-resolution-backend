@@ -21,4 +21,8 @@
     <ProjectReference Include="../UrbanIssue.Domain/UrbanIssue.Domain.csproj" />
     <ProjectReference Include="..\UrbanIssue.Application\UrbanIssue.Application.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Persistence\Migrations\" />
+  </ItemGroup>
 </Project>

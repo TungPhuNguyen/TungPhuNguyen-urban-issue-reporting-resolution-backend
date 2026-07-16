@@ -12,8 +12,8 @@ using UrbanIssue.Infrastructure.Sqlserver.Persistence;
 namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260713074155_SeedDefaultRoles")]
-    partial class SeedDefaultRoles
+    [Migration("20260716081313_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

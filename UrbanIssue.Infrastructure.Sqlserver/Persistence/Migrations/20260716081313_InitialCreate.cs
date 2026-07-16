@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 {
     /// <inheritdoc />
@@ -470,6 +472,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         principalTable: "StatusUpdates",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.InsertData(
+                table: "Roles",
+                columns: new[] { "Id", "CreatedAt", "Name", "UpdatedAt" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Citizen", null },
+                    { 2, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Staff", null },
+                    { 3, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Admin", null }
                 });
 
             migrationBuilder.CreateIndex(
