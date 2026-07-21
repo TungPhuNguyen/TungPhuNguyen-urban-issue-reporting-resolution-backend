@@ -30,12 +30,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
             builder.Property(x => x.UpdatedAt)
                 .IsRequired(false);
 
-            builder.HasIndex(x => new
-            {
-                x.CategoryId,
-                x.Priority
-            })
-            .IsUnique();
+            builder.HasIndex(x => new { x.CategoryId, x.Priority }).IsUnique();
 
             builder.HasOne(x => x.Category)
                 .WithMany(x => x.SLAConfigs)
