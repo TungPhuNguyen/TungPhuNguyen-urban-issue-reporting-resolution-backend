@@ -4,8 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.API.Contracts.Reports;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.CreateReport;
-
+using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 namespace UrbanIssue.API.Controllers.V1.Citizen;
+
+
+
 
 [ApiController]
 [Route("api/v1/citizen/reports")]
@@ -20,6 +23,54 @@ public sealed class ReportsController : ControllerBase
     {
         _sender =
             sender;
+    }
+
+    /// <summary>
+    /// Kiểm tra các báo cáo có khả năng trùng trong bán kính 100 mét.
+    /// </summary>
+    [HttpPost("check-duplicates")]
+    [Consumes("application/json")]
+    [ProducesResponseType(
+        typeof(CheckDuplicateReportsResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CheckDuplicateReportsResult>>
+        CheckDuplicateReports(
+            [FromBody]
+        CheckDuplicateReportsRequest request,
+            CancellationToken cancellationToken)
+    {
+        var command =
+            new CheckDuplicateReportsCommand(
+                CategoryId:
+                    request.CategoryId,
+
+                Latitude:
+                    request.Latitude,
+
+                Longitude:
+                    request.Longitude);
+
+        var result =
+            await _sender.Send(
+                command,
+                cancellationToken);
+
+        return Ok(result);
     }
 
     /// <summary>
