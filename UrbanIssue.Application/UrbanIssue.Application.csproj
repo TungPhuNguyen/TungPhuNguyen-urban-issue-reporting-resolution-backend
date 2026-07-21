@@ -4,6 +4,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Features\RoutingRules\GetRoutingRuleById\GetRoutingRuleByIdQueryHandler.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Features\RoutingRules\GetRoutingRuleById\GetRoutingRuleByIdQueryHandler.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />

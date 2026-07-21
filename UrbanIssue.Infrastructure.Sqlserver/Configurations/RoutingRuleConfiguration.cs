@@ -37,12 +37,14 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
             })
             .IsUnique();
 
-            builder.HasIndex(x => new
-            {
-                x.CategoryId,
-                x.AreaId,
-                x.IsActive
-            });
+            builder.HasIndex(
+            routingRule => new
+        {
+            routingRule.CategoryId,
+            routingRule.AreaId,
+            routingRule.DepartmentId
+        })
+    .IsUnique();
 
             builder.HasOne(x => x.Category)
                 .WithMany(x => x.RoutingRules)
