@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.Application.Common.Exceptions;
@@ -5,161 +6,119 @@ using UrbanIssue.Application.Common.Exceptions;
 using FluentValidationException =
     FluentValidation.ValidationException;
 
-namespace UrbanIssue.API.Common.Exceptions
-{
-    public sealed class GlobalExceptionHandler
+namespace UrbanIssue.API.Common.Exceptions;
+
+public sealed class GlobalExceptionHandler
     : IExceptionHandler
+{
+    private readonly ILogger<GlobalExceptionHandler> _logger;
+
+    public GlobalExceptionHandler(
+        ILogger<GlobalExceptionHandler> logger)
     {
-        private readonly ILogger<GlobalExceptionHandler> _logger;
+        _logger = logger;
+    }
 
-        public GlobalExceptionHandler(
-            ILogger<GlobalExceptionHandler> logger)
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        if (exception is FluentValidationException validationException)
         {
-            _logger = logger;
-        }
-
-        public async ValueTask<bool> TryHandleAsync(
-            HttpContext httpContext,
-            Exception exception,
-            CancellationToken cancellationToken)
-        {
-            LogException(
-                exception);
-
-            var problemDetails =
-                CreateProblemDetails(
-                    httpContext,
-                    exception);
-
-            httpContext.Response.StatusCode =
-                problemDetails.Status
-                ?? StatusCodes.Status500InternalServerError;
-
-            await httpContext.Response.WriteAsJsonAsync(
-                problemDetails,
+            await WriteValidationProblemDetailsAsync(
+                httpContext,
+                validationException,
                 cancellationToken);
 
             return true;
         }
 
-        private void LogException(
-            Exception exception)
-        {
-            if (exception is FluentValidationException
-                or ConflictException
-                or KeyNotFoundException
-                or UnauthorizedAccessException)
+        var (statusCode, title) =
+            exception switch
             {
-                _logger.LogWarning(
-                    exception,
-                    "A handled application exception occurred.");
+                ConflictException => (
+                    StatusCodes.Status409Conflict,
+                    "Dữ liệu bị xung đột."),
 
-                return;
-            }
+                KeyNotFoundException => (
+                    StatusCodes.Status404NotFound,
+                    "Không tìm thấy dữ liệu."),
 
+                UnauthorizedAccessException => (
+                    StatusCodes.Status401Unauthorized,
+                    "Không được phép truy cập."),
+
+                InvalidOperationException => (
+                    StatusCodes.Status400BadRequest,
+                    "Yêu cầu không hợp lệ."),
+
+                _ => (
+                    StatusCodes.Status500InternalServerError,
+                    "Đã xảy ra lỗi hệ thống.")
+            };
+
+        if (statusCode >= 500)
+        {
             _logger.LogError(
                 exception,
-                "An unhandled exception occurred.");
+                "Unhandled exception while processing {Method} {Path}",
+                httpContext.Request.Method,
+                httpContext.Request.Path);
+        }
+        else
+        {
+            _logger.LogWarning(
+                exception,
+                "Request failed with status {StatusCode}: {Method} {Path}",
+                statusCode,
+                httpContext.Request.Method,
+                httpContext.Request.Path);
         }
 
-        private static ProblemDetails CreateProblemDetails(
+        var problemDetails =
+            new ProblemDetails
+            {
+                Status = statusCode,
+                Title = title,
+                Detail =
+                    statusCode == StatusCodes.Status500InternalServerError
+                        ? "Máy chủ không thể xử lý yêu cầu."
+                        : exception.Message,
+                Instance = httpContext.Request.Path
+            };
+
+        problemDetails.Extensions["traceId"] =
+            httpContext.TraceIdentifier;
+
+        httpContext.Response.StatusCode =
+            statusCode;
+
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            cancellationToken);
+
+        return true;
+    }
+
+    private static async Task
+        WriteValidationProblemDetailsAsync(
             HttpContext httpContext,
-            Exception exception)
-        {
-            ProblemDetails problemDetails =
-                exception switch
-                {
-                    FluentValidationException validationException
-                        => CreateValidationProblemDetails(
-                            validationException),
+            FluentValidationException exception,
+            CancellationToken cancellationToken)
+    {
+        var errors =
+            exception.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .Distinct()
+                        .ToArray());
 
-                    ConflictException conflictException
-                        => new ProblemDetails
-                        {
-                            Status =
-                                StatusCodes.Status409Conflict,
-
-                            Title =
-                                "Dữ liệu bị xung đột.",
-
-                            Detail =
-                                conflictException.Message
-                        },
-
-                    KeyNotFoundException notFoundException
-                        => new ProblemDetails
-                        {
-                            Status =
-                                StatusCodes.Status404NotFound,
-
-                            Title =
-                                "Không tìm thấy dữ liệu.",
-
-                            Detail =
-                                notFoundException.Message
-                        },
-
-                    UnauthorizedAccessException
-                        unauthorizedException
-                        => new ProblemDetails
-                        {
-                            Status =
-                                StatusCodes.Status401Unauthorized,
-
-                            Title =
-                                "Không được phép truy cập.",
-
-                            Detail =
-                                unauthorizedException.Message
-                        },
-
-                    _ => new ProblemDetails
-                    {
-                        Status =
-                            StatusCodes
-                                .Status500InternalServerError,
-
-                        Title =
-                            "Đã xảy ra lỗi hệ thống.",
-
-                        Detail =
-                            "Hệ thống không thể xử lý yêu cầu. "
-                            + "Vui lòng thử lại sau."
-                    }
-                };
-
-            problemDetails.Instance =
-                httpContext.Request.Path;
-
-            problemDetails.Extensions["traceId"] =
-                httpContext.TraceIdentifier;
-
-            return problemDetails;
-        }
-
-        private static ValidationProblemDetails
-    CreateValidationProblemDetails(
-        FluentValidationException exception)
-        {
-            var validationErrors =
-                exception.Errors
-                    .GroupBy(
-                        failure =>
-                            failure.PropertyName)
-                    .ToDictionary(
-                        group =>
-                            group.Key,
-
-                        group =>
-                            group
-                                .Select(
-                                    failure =>
-                                        failure.ErrorMessage)
-                                .Distinct()
-                                .ToArray());
-
-            return new ValidationProblemDetails(
-                validationErrors)
+        var problemDetails =
+            new ValidationProblemDetails(errors)
             {
                 Status =
                     StatusCodes.Status400BadRequest,
@@ -168,9 +127,20 @@ namespace UrbanIssue.API.Common.Exceptions
                     "Dữ liệu đầu vào không hợp lệ.",
 
                 Detail =
-                    "Một hoặc nhiều trường dữ liệu "
-                    + "không đáp ứng yêu cầu."
+                    "Một hoặc nhiều trường dữ liệu không đáp ứng yêu cầu.",
+
+                Instance =
+                    httpContext.Request.Path
             };
-        }
+
+        problemDetails.Extensions["traceId"] =
+            httpContext.TraceIdentifier;
+
+        httpContext.Response.StatusCode =
+            StatusCodes.Status400BadRequest;
+
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            cancellationToken);
     }
 }

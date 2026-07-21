@@ -5,6 +5,12 @@ using UrbanIssue.API.OpenApi;
 using UrbanIssue.Application;
 using UrbanIssue.Infrastructure.Sqlserver;
 using UrbanIssue.Application.Common.Settings;
+using UrbanIssue.API.Services;
+using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Storage;
+
+
+
 
 
 var builder =
@@ -59,6 +65,15 @@ builder.Services
             && settings.HighHours > 0,
         "Thời gian SLA mặc định phải lớn hơn 0.")
     .ValidateOnStart();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<
+    ICurrentUserService,
+    CurrentUserService>();
+
+builder.Services.AddScoped<
+    IFileStorageService,
+    LocalFileStorageService>();
 
 var app =
     builder.Build();
@@ -80,6 +95,8 @@ if (app.Environment.IsDevelopment())
 
 // Có thể bật lại khi HTTPS đã được cấu hình.
 // app.UseHttpsRedirection();
+
+app.UseStaticFiles();
 
 app.UseAuthentication();
 
