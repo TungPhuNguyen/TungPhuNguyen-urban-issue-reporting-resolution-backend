@@ -205,7 +205,32 @@ public sealed class CreateReportCommandHandler
                 UpdatedAt =
                     null
             };
+        var initialStatusNote =
+    reportStatus == ReportStatus.Assigned
+        ? $"Báo cáo được tạo và tự động phân công đến {departmentName}."
+        : "Báo cáo được tạo và đang chờ Admin phân công đơn vị xử lý.";
 
+        var initialStatusUpdate =
+            new StatusUpdate
+            {
+                ReportId =
+                    report.Id,
+
+                UpdatedByUserId =
+                    _currentUserService.UserId,
+
+                OldStatus =
+                    reportStatus,
+
+                NewStatus =
+                    reportStatus,
+
+                Note =
+                    initialStatusNote,
+
+                CreatedAt =
+                    currentTime
+            };
         var storedFiles =
             new List<StoredFile>();
 
@@ -246,6 +271,9 @@ public sealed class CreateReportCommandHandler
 
             _dbContext.ReportImages.AddRange(
                 reportImages);
+            
+            _dbContext.StatusUpdates.Add(
+                initialStatusUpdate);
 
             await _dbContext.SaveChangesAsync(
                 cancellationToken);
@@ -294,6 +322,7 @@ public sealed class CreateReportCommandHandler
                     .Select(file =>
                         file.PublicUrl)
                     .ToList());
+
     }
 
     private sealed record RoutingCandidate(
