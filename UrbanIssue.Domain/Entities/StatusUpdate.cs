@@ -24,6 +24,6 @@ namespace UrbanIssue.Domain.Entities
         public User? UpdatedByUser { get; set; }
 
         public ICollection<StatusUpdateImage> Images { get; set; }
-            = new List<StatusUpdateImage>();
+        = new List<StatusUpdateImage>();
     }
 }
