@@ -10,19 +10,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
     public sealed class CommentConfiguration
     : IEntityTypeConfiguration<Comment>
     {
-        public void Configure(EntityTypeBuilder<Comment> builder)
+        public void Configure(
+            EntityTypeBuilder<Comment> builder)
         {
             builder.ToTable("Comments");
 
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Content)
-                .HasColumnType("nvarchar(max)")
-                .IsRequired();
-
-            builder.Property(x => x.IsComplaint)
-                .HasDefaultValue(false)
-                .IsRequired();
+                .IsRequired()
+                .HasMaxLength(1000);
 
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
@@ -32,14 +29,6 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 x.ReportId,
                 x.CreatedAt
             });
-
-            /*
-             * Mỗi Report chỉ có tối đa một Comment
-             * được đánh dấu là khiếu nại.
-             */
-            builder.HasIndex(x => x.ReportId)
-                .IsUnique()
-                .HasFilter("[IsComplaint] = 1");
 
             builder.HasOne(x => x.Report)
                 .WithMany(x => x.Comments)

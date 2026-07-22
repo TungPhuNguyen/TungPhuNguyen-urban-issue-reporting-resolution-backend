@@ -63,11 +63,11 @@ public sealed class ApplicationDbContext
         => Set<AuditLog>();
 
     protected override void OnModelCreating(
-        ModelBuilder modelBuilder)
+    ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
-
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(ApplicationDbContext).Assembly);
+
+        base.OnModelCreating(modelBuilder);
     }
 }

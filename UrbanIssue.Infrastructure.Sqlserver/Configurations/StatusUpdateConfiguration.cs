@@ -45,9 +45,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasOne(x => x.UpdatedByUser)
-                .WithMany(x => x.StatusUpdates)
-                .HasForeignKey(x => x.UpdatedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                    .WithMany(x => x.StatusUpdates)
+                    .HasForeignKey(x => x.UpdatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

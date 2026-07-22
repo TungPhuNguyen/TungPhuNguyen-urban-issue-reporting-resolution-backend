@@ -5,7 +5,6 @@ using UrbanIssue.API.Contracts.Reports;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.CreateReport;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
-using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Application.Features.Reports.GetMyReportById;
 using UrbanIssue.Application.Features.Reports.GetMyReports;
@@ -13,7 +12,10 @@ using UrbanIssue.Application.Features.Reports.GetReportTimeline;
 using UrbanIssue.Application.Features.Reports.Upvotes.AddReportUpvote;
 using UrbanIssue.Application.Features.Reports.Upvotes.Common;
 using UrbanIssue.Application.Features.Reports.Upvotes.RemoveReportUpvote;
-
+using UrbanIssue.Application.Features.Reports.Comments.AddReportComment;
+using UrbanIssue.Application.Features.Reports.Comments.Common;
+using UrbanIssue.Application.Features.Reports.Comments.DeleteReportComment;
+using UrbanIssue.Application.Features.Reports.Comments.GetReportComments;
 
 
 
@@ -326,5 +328,95 @@ public sealed class ReportsController : ControllerBase
                 cancellationToken);
 
         return Ok(result);
+    }
+    /// <summary>
+    /// Lấy danh sách bình luận của một báo cáo.
+    /// </summary>
+    [HttpGet("{id:guid}/comments")]
+    [ProducesResponseType(
+        typeof(PagedResult<ReportCommentResult>),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<
+        ActionResult<PagedResult<ReportCommentResult>>>
+        GetComments(
+            Guid id,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+    {
+        var result =
+            await _sender.Send(
+                new GetReportCommentsQuery(
+                    ReportId: id,
+                    PageNumber: pageNumber,
+                    PageSize: pageSize),
+                cancellationToken);
+
+        return Ok(result);
+    }
+    /// <summary>
+    /// Thêm bình luận vào một báo cáo.
+    /// </summary>
+    [HttpPost("{id:guid}/comments")]
+    [ProducesResponseType(
+        typeof(ReportCommentResult),
+        StatusCodes.Status201Created)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReportCommentResult>>
+        AddComment(
+            Guid id,
+            [FromBody] AddReportCommentRequest request,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                new AddReportCommentCommand(
+                    ReportId: id,
+                    Content: request.Content),
+                cancellationToken);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            result);
+    }
+    /// <summary>
+    /// Xóa bình luận do Citizen hiện tại tạo.
+    /// </summary>
+    [HttpDelete("{reportId:guid}/comments/{commentId:int}")]
+    [ProducesResponseType(
+        StatusCodes.Status204NoContent)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<IActionResult>
+        DeleteComment(
+            Guid reportId,
+            int commentId,
+            CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new DeleteReportCommentCommand(
+                ReportId: reportId,
+                CommentId: commentId),
+            cancellationToken);
+
+        return NoContent();
     }
 }
