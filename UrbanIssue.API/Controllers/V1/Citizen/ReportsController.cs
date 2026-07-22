@@ -6,7 +6,11 @@ using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.CreateReport;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 namespace UrbanIssue.API.Controllers.V1.Citizen;
-
+using UrbanIssue.Application.Common.Models;
+using UrbanIssue.Application.Features.Reports.Common;
+using UrbanIssue.Application.Features.Reports.GetMyReportById;
+using UrbanIssue.Application.Features.Reports.GetMyReports;
+using UrbanIssue.Application.Features.Reports.GetReportTimeline;
 
 
 
@@ -160,5 +164,96 @@ public sealed class ReportsController : ControllerBase
                     .DisposeAsync();
             }
         }
+    }
+    /// <summary>
+    /// Lấy danh sách báo cáo của Citizen đang đăng nhập.
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(
+        typeof(PagedResult<CitizenReportSummaryResult>),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    public async Task<
+        ActionResult<PagedResult<CitizenReportSummaryResult>>>
+        GetMyReports(
+            [FromQuery] GetMyReportsQuery query,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                query,
+                cancellationToken);
+
+        return Ok(result);
+    }
+    /// <summary>
+    /// Lấy chi tiết một báo cáo thuộc Citizen đang đăng nhập.
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(
+        typeof(CitizenReportDetailResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CitizenReportDetailResult>>
+        GetMyReportById(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                new GetMyReportByIdQuery(id),
+                cancellationToken);
+
+        return Ok(result);
+    }
+    /// <summary>
+    /// Lấy lịch sử thay đổi trạng thái của báo cáo.
+    /// </summary>
+    [HttpGet("{id:guid}/timeline")]
+    [ProducesResponseType(
+        typeof(GetReportTimelineResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GetReportTimelineResult>>
+        GetReportTimeline(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                new GetReportTimelineQuery(id),
+                cancellationToken);
+
+        return Ok(result);
     }
 }
