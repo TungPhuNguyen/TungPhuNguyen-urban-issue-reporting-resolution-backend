@@ -5,14 +5,20 @@ using UrbanIssue.API.Contracts.Reports;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.CreateReport;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
-namespace UrbanIssue.API.Controllers.V1.Citizen;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Application.Features.Reports.GetMyReportById;
 using UrbanIssue.Application.Features.Reports.GetMyReports;
 using UrbanIssue.Application.Features.Reports.GetReportTimeline;
+using UrbanIssue.Application.Features.Reports.Upvotes.AddReportUpvote;
+using UrbanIssue.Application.Features.Reports.Upvotes.Common;
+using UrbanIssue.Application.Features.Reports.Upvotes.RemoveReportUpvote;
 
 
+
+
+
+namespace UrbanIssue.API.Controllers.V1.Citizen;
 
 [ApiController]
 [Route("api/v1/citizen/reports")]
@@ -252,6 +258,71 @@ public sealed class ReportsController : ControllerBase
         var result =
             await _sender.Send(
                 new GetReportTimelineQuery(id),
+                cancellationToken);
+
+        return Ok(result);
+    }
+    /// <summary>
+    /// Upvote một báo cáo của Citizen khác.
+    /// </summary>
+    [HttpPost("{id:guid}/upvote")]
+    [ProducesResponseType(
+        typeof(ReportUpvoteResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReportUpvoteResult>>
+        AddUpvote(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                new AddReportUpvoteCommand(id),
+                cancellationToken);
+
+        return Ok(result);
+    }
+    /// <summary>
+    /// Bỏ upvote khỏi một báo cáo.
+    /// </summary>
+    [HttpDelete("{id:guid}/upvote")]
+    [ProducesResponseType(
+        typeof(ReportUpvoteResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReportUpvoteResult>>
+        RemoveUpvote(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await _sender.Send(
+                new RemoveReportUpvoteCommand(id),
                 cancellationToken);
 
         return Ok(result);
