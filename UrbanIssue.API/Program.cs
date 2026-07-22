@@ -3,12 +3,14 @@ using UrbanIssue.API.Common.Exceptions;
 using UrbanIssue.API.Extensions;
 using UrbanIssue.API.OpenApi;
 using UrbanIssue.Application;
-using UrbanIssue.Infrastructure.Sqlserver;
 using UrbanIssue.Application.Common.Settings;
-
+using UrbanIssue.Infrastructure.Sqlserver;
 
 var builder =
     WebApplication.CreateBuilder(args);
+
+const string AllowFrontendPolicy =
+    "AllowFrontend";
 
 builder.Services
     .AddControllers()
@@ -36,6 +38,22 @@ builder.Services.AddInfrastructure(
 builder.Services.AddJwtAuthentication(
     builder.Configuration);
 
+// Thêm CORS cho React frontend
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy(
+            AllowFrontendPolicy,
+            policy =>
+            {
+                policy
+                    .WithOrigins(
+                        "http://localhost:5173")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            });
+    });
+
 builder.Services.AddOpenApi(
     options =>
     {
@@ -47,6 +65,7 @@ builder.Services.AddOpenApi(
             .AddOperationTransformer<
                 BearerSecurityOperationTransformer>();
     });
+
 builder.Services
     .AddOptions<DefaultSlaSettings>()
     .Bind(
@@ -80,6 +99,10 @@ if (app.Environment.IsDevelopment())
 
 // Có thể bật lại khi HTTPS đã được cấu hình.
 // app.UseHttpsRedirection();
+
+// CORS phải chạy trước Authentication/Authorization
+app.UseCors(
+    AllowFrontendPolicy);
 
 app.UseAuthentication();
 
