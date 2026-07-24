@@ -13,7 +13,6 @@ using UrbanIssue.Infrastructure.Sqlserver;
 
 
 
-
 var builder =
     WebApplication.CreateBuilder(args);
 
@@ -78,6 +77,9 @@ builder.Services.AddScoped<
 
 builder.Services.AddHostedService<
     AutoCloseResolvedReportsBackgroundService>();
+
+builder.Services.AddHostedService<
+    SlaMonitoringBackgroundService>();
 
 var app =
     builder.Build();
