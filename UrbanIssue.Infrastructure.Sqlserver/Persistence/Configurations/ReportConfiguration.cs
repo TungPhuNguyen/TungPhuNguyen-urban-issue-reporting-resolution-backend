@@ -122,6 +122,20 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 x.CreatedAt
             });
 
+            builder.HasIndex(x => x.CreatedAt);
+
+            builder.HasIndex(x => x.ResolvedAt);
+
+            builder.HasIndex(x => x.ClosedAt);
+
+            builder.HasIndex(x => new
+            {
+                x.Status,
+                x.DueAt
+            });
+
+            builder.HasIndex(x => x.SLAStartedAt);
+
 
             builder.HasOne(x => x.Citizen)
                 .WithMany(x => x.CreatedReports)
@@ -164,6 +178,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .OnDelete(DeleteBehavior.Restrict);
             builder.Property(x => x.ComplaintReason)
                     .HasMaxLength(2000);
+            
         }
     }
 }
