@@ -1,13 +1,14 @@
 using System.Text.Json.Serialization;
+using UrbanIssue.API.BackgroundServices;
 using UrbanIssue.API.Common.Exceptions;
 using UrbanIssue.API.Extensions;
 using UrbanIssue.API.OpenApi;
-using UrbanIssue.Application;
-using UrbanIssue.Infrastructure.Sqlserver;
-using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.API.Services;
+using UrbanIssue.Application;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Storage;
+using UrbanIssue.Application.Common.Settings;
+using UrbanIssue.Infrastructure.Sqlserver;
 
 
 
@@ -74,6 +75,9 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     IFileStorageService,
     LocalFileStorageService>();
+
+builder.Services.AddHostedService<
+    AutoCloseResolvedReportsBackgroundService>();
 
 var app =
     builder.Build();

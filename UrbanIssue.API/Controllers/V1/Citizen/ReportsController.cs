@@ -16,6 +16,9 @@ using UrbanIssue.Application.Features.Reports.Comments.AddReportComment;
 using UrbanIssue.Application.Features.Reports.Comments.Common;
 using UrbanIssue.Application.Features.Reports.Comments.DeleteReportComment;
 using UrbanIssue.Application.Features.Reports.Comments.GetReportComments;
+using UrbanIssue.Application.Features.Reports.PostResolution.CloseReport;
+using UrbanIssue.Application.Features.Reports.PostResolution.Common;
+using UrbanIssue.Application.Features.Reports.PostResolution.SubmitComplaint;
 
 
 
@@ -418,5 +421,59 @@ public sealed class ReportsController : ControllerBase
             cancellationToken);
 
         return NoContent();
+    }
+    [HttpPost("{id:guid}/complaints")]
+    [ProducesResponseType(
+    typeof(PostResolutionActionResult),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    typeof(ValidationProblemDetails),
+    StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+    typeof(ProblemDetails),
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    typeof(ProblemDetails),
+    StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PostResolutionActionResult>>
+    SubmitComplaint(
+        Guid id,
+        [FromBody] SubmitComplaintRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new SubmitComplaintCommand(
+                ReportId: id,
+                Reason: request.Reason),
+            cancellationToken);
+
+        return Ok(result);
+    }
+    [HttpPost("{id:guid}/close")]
+    [ProducesResponseType(
+    typeof(PostResolutionActionResult),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    typeof(ValidationProblemDetails),
+    StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+    typeof(ProblemDetails),
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    typeof(ProblemDetails),
+    StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PostResolutionActionResult>>
+    CloseReport(
+        Guid id,
+        [FromBody] CloseReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new CloseReportCommand(
+                ReportId: id,
+                Note: request.Note),
+            cancellationToken);
+
+        return Ok(result);
     }
 }

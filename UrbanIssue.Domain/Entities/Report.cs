@@ -77,6 +77,11 @@ namespace UrbanIssue.Domain.Entities
 
         public string? ReopenReason { get; set; }
 
+        // Citizen complaint after resolution
+        public DateTime? ComplaintSubmittedAt { get; set; }
+
+        public string? ComplaintReason { get; set; }
+
         // Navigation properties
         public User Citizen { get; set; } = null!;
 

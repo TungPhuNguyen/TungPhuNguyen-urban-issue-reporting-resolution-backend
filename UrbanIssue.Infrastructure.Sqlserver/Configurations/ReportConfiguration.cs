@@ -84,6 +84,12 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
 
             builder.HasIndex(x => new
             {
+                x.Status,
+                x.ComplaintSubmittedAt
+            });
+
+            builder.HasIndex(x => new
+            {
                 x.DepartmentId,
                 x.Status,
                 x.DueAt
@@ -140,6 +146,8 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .WithMany(x => x.ReopenedReports)
                 .HasForeignKey(x => x.ReopenedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            builder.Property(x => x.ComplaintReason)
+                    .HasMaxLength(2000);
         }
     }
 }
