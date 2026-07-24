@@ -107,6 +107,22 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 x.CreatedAt
             });
 
+            builder.HasIndex(x => new
+            {
+                x.Status,
+                x.Latitude,
+                x.Longitude
+            });
+
+            builder.HasIndex(x => new
+            {
+                x.CategoryId,
+                x.AreaId,
+                x.Status,
+                x.CreatedAt
+            });
+
+
             builder.HasOne(x => x.Citizen)
                 .WithMany(x => x.CreatedReports)
                 .HasForeignKey(x => x.CitizenId)
