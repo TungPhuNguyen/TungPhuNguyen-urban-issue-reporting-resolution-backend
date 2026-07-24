@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using UrbanIssue.Application.Common.Constants;
 using UrbanIssue.Application.Common.Exceptions;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Admin.Common;
@@ -16,13 +18,16 @@ public sealed class AssignReportCommandHandler
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAuditLogService _auditLogService;
 
     public AssignReportCommandHandler(
         IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<AdminReportActionResult> Handle(
@@ -58,7 +63,8 @@ public sealed class AssignReportCommandHandler
                 item.Name,
                 item.IsActive
             })
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(
+                cancellationToken);
 
         if (department is null)
         {
@@ -86,12 +92,14 @@ public sealed class AssignReportCommandHandler
                 {
                     user.FullName
                 })
-                .SingleOrDefaultAsync(cancellationToken);
+                .SingleOrDefaultAsync(
+                    cancellationToken);
 
             if (staff is null)
             {
                 throw new ConflictException(
-                    "Staff không tồn tại, không thuộc phòng ban đã chọn hoặc không có vai trò Staff.");
+                    "Staff không tồn tại, không thuộc phòng ban đã chọn "
+                    + "hoặc không có vai trò Staff.");
             }
 
             staffName = staff.FullName;
@@ -117,12 +125,41 @@ public sealed class AssignReportCommandHandler
                 UpdatedByUserId = adminId,
                 OldStatus = oldStatus,
                 NewStatus = ReportStatus.Assigned,
+
                 Note = string.IsNullOrWhiteSpace(request.Note)
                     ? $"Admin đã phân công báo cáo cho {targetName}."
                     : request.Note.Trim(),
+
                 CreatedAt = currentTime
             });
 
+        _auditLogService.Add(
+            userId: adminId,
+            action: AuditActions.ReportAssigned,
+            entityType: AuditEntityTypes.Report,
+            entityId: report.Id.ToString(),
+            detail: new
+            {
+                OldStatus = oldStatus,
+                NewStatus = report.Status,
+
+                report.DepartmentId,
+                DepartmentName = department.Name,
+
+                report.AssignedStaffId,
+                AssignedStaffName = staffName,
+
+                report.RequiresManualAssignment,
+
+                Note = string.IsNullOrWhiteSpace(request.Note)
+                    ? null
+                    : request.Note.Trim()
+            });
+
+        /*
+         * Report, StatusUpdate và AuditLog được lưu
+         * chung trong một transaction của SaveChangesAsync.
+         */
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 

@@ -9,6 +9,8 @@ using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Storage;
 using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Infrastructure.Sqlserver;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
+using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 
 
 
@@ -80,6 +82,10 @@ builder.Services.AddHostedService<
 
 builder.Services.AddHostedService<
     SlaMonitoringBackgroundService>();
+
+builder.Services.AddScoped<
+    IAuditLogService,
+    AuditLogService>();
 
 var app =
     builder.Build();

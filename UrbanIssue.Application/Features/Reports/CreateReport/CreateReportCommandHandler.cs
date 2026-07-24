@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using UrbanIssue.Application.Common.Constants;
 using UrbanIssue.Application.Common.Exceptions;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Common.Interfaces.Storage;
@@ -23,6 +25,7 @@ public sealed class CreateReportCommandHandler
 
     private readonly IFileStorageService
         _fileStorageService;
+    private readonly IAuditLogService _auditLogService;
 
     public CreateReportCommandHandler(
         IApplicationDbContext dbContext,
@@ -38,7 +41,17 @@ public sealed class CreateReportCommandHandler
         _fileStorageService =
             fileStorageService;
     }
-
+    public CreateReportCommandHandler(
+    IApplicationDbContext dbContext,
+    ICurrentUserService currentUserService,
+    IFileStorageService fileStorageService,
+    IAuditLogService auditLogService)
+    {
+        _dbContext = dbContext;
+        _currentUserService = currentUserService;
+        _fileStorageService = fileStorageService;
+        _auditLogService = auditLogService;
+    }
     public async Task<CreateReportResult> Handle(
         CreateReportCommand request,
         CancellationToken cancellationToken)
@@ -274,6 +287,32 @@ public sealed class CreateReportCommandHandler
             
             _dbContext.StatusUpdates.Add(
                 initialStatusUpdate);
+
+            _auditLogService.Add(
+    userId:
+        report.CitizenId,
+
+    action:
+        AuditActions.ReportCreated,
+
+    entityType:
+        AuditEntityTypes.Report,
+
+    entityId:
+        report.Id.ToString(),
+
+    detail:
+        new
+        {
+            report.CategoryId,
+            report.AreaId,
+            report.DepartmentId,
+            report.Status,
+            report.RequiresManualAssignment,
+            report.Latitude,
+            report.Longitude,
+            ImageCount = reportImages.Count
+        });
 
             await _dbContext.SaveChangesAsync(
                 cancellationToken);

@@ -38,10 +38,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
             builder.HasIndex(x => new
             {
                 x.EntityType,
-                x.EntityId
+                x.EntityId,
+                x.CreatedAt
             });
 
-            builder.HasIndex(x => x.CreatedAt);
+
+            builder.HasIndex(x => new
+            {
+                x.UserId,
+                x.CreatedAt
+            });
 
             builder.HasOne(x => x.User)
                 .WithMany(x => x.AuditLogs)

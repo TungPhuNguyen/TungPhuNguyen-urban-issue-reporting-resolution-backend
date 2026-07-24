@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using UrbanIssue.Application.Common.Constants;
 using UrbanIssue.Application.Common.Exceptions;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Staff.Common;
@@ -10,19 +12,20 @@ using UrbanIssue.Domain.Enums;
 namespace UrbanIssue.Application.Features.Reports.Staff.AcceptReport;
 
 public sealed class AcceptReportCommandHandler
-    : IRequestHandler<
-        AcceptReportCommand,
-        StaffReportActionResult>
+    : IRequestHandler<AcceptReportCommand, StaffReportActionResult>
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IAuditLogService _auditLogService;
 
     public AcceptReportCommandHandler(
         IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<StaffReportActionResult> Handle(
@@ -56,8 +59,7 @@ public sealed class AcceptReportCommandHandler
             .SingleOrDefaultAsync(
                 item =>
                     item.Id == request.ReportId
-                    && item.DepartmentId
-                        == staff.DepartmentId.Value,
+                    && item.DepartmentId == staff.DepartmentId.Value,
                 cancellationToken);
 
         if (report is null)
@@ -110,6 +112,15 @@ public sealed class AcceptReportCommandHandler
         report.DueAt = currentTime.AddHours(
             slaConfig.DurationHours);
 
+        /*
+         * Reset các cờ giám sát SLA để bảo đảm
+         * Report bắt đầu một chu kỳ SLA mới.
+         */
+        report.SLAWarningSentAt = null;
+        report.SLABreachedNotifiedAt = null;
+        report.IsEscalated = false;
+        report.EscalatedAt = null;
+
         report.AcceptedAt = currentTime;
         report.UpdatedAt = currentTime;
 
@@ -128,6 +139,36 @@ public sealed class AcceptReportCommandHandler
                 CreatedAt = currentTime
             });
 
+        /*
+         * Handler Accept chỉ ghi audit REPORT_ACCEPTED.
+         * Audit StartProcessing và Resolve thuộc các handler riêng.
+         */
+        _auditLogService.Add(
+            userId: staffId,
+            action: AuditActions.ReportAccepted,
+            entityType: AuditEntityTypes.Report,
+            entityId: report.Id.ToString(),
+            detail: new
+            {
+                OldStatus = oldStatus,
+                NewStatus = report.Status,
+
+                report.Priority,
+                report.DepartmentId,
+                report.AssignedStaffId,
+
+                report.SLAConfigId,
+                report.AppliedSLAHours,
+                report.SLAStartedAt,
+                report.DueAt,
+
+                Note = note
+            });
+
+        /*
+         * Report, StatusUpdate và AuditLog được lưu
+         * trong cùng một lần SaveChangesAsync.
+         */
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
