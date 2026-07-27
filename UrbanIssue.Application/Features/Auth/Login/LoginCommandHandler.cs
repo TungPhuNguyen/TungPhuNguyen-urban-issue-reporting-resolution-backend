@@ -129,6 +129,12 @@ namespace UrbanIssue.Application.Features.Auth.Login
                         DateTime.UtcNow
                 };
 
+            if (!refreshToken.User.IsActive)
+            {
+                throw new UnauthorizedAccessException(
+                    "Tài khoản đã bị khóa.");
+            }
+
             _dbContext.RefreshTokens.Add(
                 refreshToken);
 

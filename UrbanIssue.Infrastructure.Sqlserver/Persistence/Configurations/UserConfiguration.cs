@@ -26,6 +26,15 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
             builder.HasIndex(x => x.Email)
                 .IsUnique();
 
+            builder.HasIndex(user => new
+            {
+                user.RoleId,
+                user.DepartmentId,
+                user.IsActive,
+                user.CreatedAt
+            });
+
+
             builder.Property(x => x.PasswordHash)
                 .HasMaxLength(500)
                 .IsRequired();

@@ -19,4 +19,7 @@ public static class AuditEntityTypes
 
     public const string SlaConfig =
         "SLAConfig";
+
+    public const string User =
+        "User";
 }

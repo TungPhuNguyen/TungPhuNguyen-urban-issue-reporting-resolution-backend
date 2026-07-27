@@ -79,4 +79,13 @@ public static class AuditActions
 
     public const string SlaConfigUpdated =
         "SLA_CONFIG_UPDATED";
+
+    public const string StaffCreated =
+    "STAFF_CREATED";
+
+    public const string StaffUpdated =
+        "STAFF_UPDATED";
+
+    public const string UserStatusChanged =
+        "USER_STATUS_CHANGED";
 }
