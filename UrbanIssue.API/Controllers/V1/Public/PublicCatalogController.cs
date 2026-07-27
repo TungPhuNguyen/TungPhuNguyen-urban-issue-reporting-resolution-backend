@@ -45,22 +45,20 @@ public sealed class PublicCatalogController : ControllerBase
     /// Lấy danh sách khu vực đang hoạt động.
     /// </summary>
     [HttpGet("areas")]
+    [AllowAnonymous]
     [ProducesResponseType(
-        typeof(IReadOnlyList<PublicAreaResult>),
-        StatusCodes.Status200OK)]
-    [ProducesResponseType(
-        typeof(ValidationProblemDetails),
-        StatusCodes.Status400BadRequest)]
+    typeof(IReadOnlyList<PublicAreaResult>),
+    StatusCodes.Status200OK)]
     public async Task<
-        ActionResult<IReadOnlyList<PublicAreaResult>>>
-        GetAreas(
-            [FromQuery] GetPublicAreasQuery query,
-            CancellationToken cancellationToken)
+    ActionResult<IReadOnlyList<PublicAreaResult>>>
+    GetAreas(
+        [FromQuery] int? parentAreaId,
+        CancellationToken cancellationToken)
     {
-        var result =
-            await _sender.Send(
-                query,
-                cancellationToken);
+        var result = await _sender.Send(
+            new GetPublicAreasQuery(
+                parentAreaId),
+            cancellationToken);
 
         return Ok(result);
     }

@@ -18,54 +18,65 @@ public sealed class GetPublicAreasQueryHandler
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<PublicAreaResult>>
-        Handle(
-            GetPublicAreasQuery request,
-            CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<PublicAreaResult>> Handle(
+        GetPublicAreasQuery request,
+        CancellationToken cancellationToken)
     {
-        var areasQuery =
-            _dbContext.Areas
-                .AsNoTracking()
-                .Where(area =>
-                    area.IsActive);
+        var areasQuery = _dbContext.Areas
+            .AsNoTracking()
+            .Where(area => area.IsActive);
 
+        /*
+         * Khi có ParentAreaId, kiểm tra ID đó phải là
+         * một Quận đang hoạt động.
+         */
         if (request.ParentAreaId.HasValue)
         {
+            var districtId =
+                request.ParentAreaId.Value;
+
+            var districtExists =
+                await _dbContext.Areas
+                    .AsNoTracking()
+                    .AnyAsync(
+                        area =>
+                            area.Id == districtId
+                            && area.IsActive
+                            && !area.ParentAreaId.HasValue,
+                        cancellationToken);
+
+            if (!districtExists)
+            {
+                throw new KeyNotFoundException(
+                    $"Không tìm thấy Quận đang hoạt động "
+                    + $"có ID {districtId}.");
+            }
+
             /*
-             * Lấy các khu vực con trực tiếp
-             * của ParentAreaId được truyền vào.
+             * Lấy các Phường trực thuộc Quận.
              */
-            areasQuery =
-                areasQuery.Where(area =>
-                    area.ParentAreaId
-                        == request.ParentAreaId.Value);
+            areasQuery = areasQuery.Where(
+                area =>
+                    area.ParentAreaId == districtId);
         }
         else
         {
             /*
-             * Không truyền ParentAreaId:
-             * chỉ lấy các khu vực cấp gốc.
+             * Không truyền ParentAreaId thì chỉ lấy Quận.
              */
-            areasQuery =
-                areasQuery.Where(area =>
-                    area.ParentAreaId == null);
+            areasQuery = areasQuery.Where(
+                area =>
+                    !area.ParentAreaId.HasValue);
         }
 
-        var areas =
-            await areasQuery
-                .OrderBy(area =>
-                    area.Name)
-                .ThenBy(area =>
-                    area.Id)
-                .Select(area =>
-                    new PublicAreaResult(
-                        area.Id,
-                        area.Name,
-                        area.Code,
-                        area.ParentAreaId))
-                .ToListAsync(
-                    cancellationToken);
-
-        return areas;
+        return await areasQuery
+            .OrderBy(area => area.Name)
+            .Select(area =>
+                new PublicAreaResult(
+                    area.Id,
+                    area.Name,
+                    area.Code,
+                    area.ParentAreaId))
+            .ToListAsync(cancellationToken);
     }
 }

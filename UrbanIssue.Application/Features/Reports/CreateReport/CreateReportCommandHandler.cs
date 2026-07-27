@@ -60,7 +60,7 @@ public sealed class CreateReportCommandHandler
         {
             throw new ConflictException(
                 "Không thể tạo báo cáo với loại sự cố đã ngừng hoạt động.");
-        }
+        } 
 
         var area =
             await _dbContext.Areas
@@ -80,6 +80,17 @@ public sealed class CreateReportCommandHandler
         {
             throw new ConflictException(
                 "Không thể tạo báo cáo tại khu vực đã ngừng hoạt động.");
+        }
+
+        /*
+ * Report phải chọn Phường.
+ * Area cấp Quận chỉ dùng để nhóm các Phường.
+ */
+        if (!area.ParentAreaId.HasValue)
+        {
+            throw new ConflictException(
+                "Vui lòng chọn Phường. "
+                + "Không thể gửi báo cáo trực tiếp cho Quận.");
         }
 
         /*

@@ -64,6 +64,13 @@ public sealed class CreateRoutingRuleCommandHandler
                 "Không thể sử dụng khu vực đã ngừng hoạt động.");
         }
 
+        if (!area.ParentAreaId.HasValue)
+        {
+            throw new ConflictException(
+                "Routing Rule chỉ được cấu hình cho Phường, "
+                + "không thể cấu hình trực tiếp cho Quận.");
+        }
+
         var department =
             await _dbContext.Departments
                 .AsNoTracking()
