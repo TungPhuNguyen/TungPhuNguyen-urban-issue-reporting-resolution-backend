@@ -13,12 +13,19 @@ using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
+using Microsoft.Extensions.FileProviders;
 
 
 
 
 var builder =
     WebApplication.CreateBuilder(args);
+
+var allowedOrigins =
+    builder.Configuration
+        .GetSection("Frontend:AllowedOrigins")
+        .Get<string[]>()
+    ?? [];
 
 builder.Services
     .AddControllers()
@@ -93,8 +100,37 @@ builder.Services.AddScoped<
     INotificationService,
     NotificationService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "FrontendPolicy",
+        policy =>
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
 var app =
     builder.Build();
+
+var uploadsDirectory = Path.Combine(
+    builder.Environment.ContentRootPath,
+    "uploads");
+
+Directory.CreateDirectory(uploadsDirectory);
+
+app.UseStaticFiles(
+    new StaticFileOptions
+    {
+        FileProvider =
+            new PhysicalFileProvider(
+                uploadsDirectory),
+
+        RequestPath = "/uploads"
+    });
 
 app.UseExceptionHandler();
 
@@ -113,6 +149,12 @@ if (app.Environment.IsDevelopment())
 
 // Có thể bật lại khi HTTPS đã được cấu hình.
 // app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+
+app.UseHttpsRedirection();
+
+app.UseCors("FrontendPolicy");
 
 app.UseStaticFiles();
 
