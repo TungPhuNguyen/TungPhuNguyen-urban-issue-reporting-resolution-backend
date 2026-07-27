@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using UrbanIssue.Application.Common.Exceptions;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Staff.Common;
 using UrbanIssue.Domain.Entities;
@@ -15,14 +17,21 @@ public sealed class StartProcessingReportCommandHandler
         StaffReportActionResult>
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly IAuditLogService _auditLogService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly INotificationService _notificationService;
+
 
     public StartProcessingReportCommandHandler(
         IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IAuditLogService auditLogService,
+    INotificationService notificationService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     public async Task<StaffReportActionResult> Handle(
@@ -68,6 +77,15 @@ public sealed class StartProcessingReportCommandHandler
                     : request.Note.Trim(),
                 CreatedAt = currentTime
             });
+        _notificationService.Add(
+    userId: report.CitizenId,
+    reportId: report.Id,
+    type: NotificationType.ReportStatusChanged,
+    title: "Báo cáo đang được xử lý",
+    message:
+        "Nhân viên phụ trách đã bắt đầu "
+        + "xử lý báo cáo của bạn.",
+    createdAt: currentTime);
 
         await _dbContext.SaveChangesAsync(
             cancellationToken);

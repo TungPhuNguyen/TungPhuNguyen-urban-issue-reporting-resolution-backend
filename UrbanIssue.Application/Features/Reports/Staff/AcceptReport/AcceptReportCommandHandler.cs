@@ -8,6 +8,7 @@ using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Staff.Common;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
 
 namespace UrbanIssue.Application.Features.Reports.Staff.AcceptReport;
 
@@ -17,15 +18,18 @@ public sealed class AcceptReportCommandHandler
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditLogService _auditLogService;
+    private readonly INotificationService _notificationService;
 
     public AcceptReportCommandHandler(
-        IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService,
-        IAuditLogService auditLogService)
+    IApplicationDbContext dbContext,
+    ICurrentUserService currentUserService,
+    IAuditLogService auditLogService,
+    INotificationService notificationService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     public async Task<StaffReportActionResult> Handle(
@@ -164,6 +168,15 @@ public sealed class AcceptReportCommandHandler
 
                 Note = note
             });
+        _notificationService.Add(
+    userId: report.CitizenId,
+    reportId: report.Id,
+    type: NotificationType.ReportStatusChanged,
+    title: "Báo cáo đã được tiếp nhận",
+    message:
+        $"Báo cáo của bạn đã được tiếp nhận "
+        + $"với mức ưu tiên {report.Priority}.",
+    createdAt: currentTime);
 
         /*
          * Report, StatusUpdate và AuditLog được lưu

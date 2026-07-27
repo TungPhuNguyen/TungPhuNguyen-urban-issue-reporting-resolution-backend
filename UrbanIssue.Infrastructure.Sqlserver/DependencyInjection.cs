@@ -7,8 +7,6 @@ using System.Text;
 using UrbanIssue.Infrastructure.Sqlserver.Persistence;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Authentication;
-using UrbanIssue.Application.Common.Interfaces.Authentication;
-using UrbanIssue.Infrastructure.Sqlserver.Services.Authentication;
 using UrbanIssue.Infrastructure.Sqlserver.Settings;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 

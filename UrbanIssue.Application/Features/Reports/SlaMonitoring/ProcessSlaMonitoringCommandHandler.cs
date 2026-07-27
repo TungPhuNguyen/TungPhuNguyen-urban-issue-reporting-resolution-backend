@@ -1,5 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using UrbanIssue.Application.Common.Constants;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
@@ -12,15 +15,20 @@ public sealed class ProcessSlaMonitoringCommandHandler
         ProcessSlaMonitoringResult>
 {
     private const double WarningThresholdRatio = 0.8d;
-
     private const int BatchSize = 200;
 
     private readonly IApplicationDbContext _dbContext;
+    private readonly INotificationService _notificationService;
+    private readonly IAuditLogService _auditLogService;
 
     public ProcessSlaMonitoringCommandHandler(
-        IApplicationDbContext dbContext)
+        IApplicationDbContext dbContext,
+        INotificationService notificationService,
+        IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ProcessSlaMonitoringResult> Handle(
@@ -30,11 +38,13 @@ public sealed class ProcessSlaMonitoringCommandHandler
         var currentTime = request.CurrentTime;
 
         /*
-         * Chỉ giám sát các Report:
+         * Chỉ lấy các Report thực sự cần xử lý:
          *
          * - Accepted hoặc InProgress
-         * - Đã có SLA snapshot
-         * - Có DueAt
+         * - Có đầy đủ SLA snapshot
+         * - Đã quá hạn và chưa gửi breach
+         *   hoặc
+         * - Đã đạt ngưỡng cảnh báo 80% và chưa gửi warning
          */
         var reports = await _dbContext.Reports
             .Where(report =>
@@ -44,8 +54,26 @@ public sealed class ProcessSlaMonitoringCommandHandler
                 )
                 && report.SLAStartedAt.HasValue
                 && report.AppliedSLAHours.HasValue
-                && report.DueAt.HasValue)
-            .OrderBy(report => report.DueAt)
+                && report.DueAt.HasValue
+                && (
+                    (
+                        !report.SLABreachedNotifiedAt.HasValue
+                        && report.DueAt.Value <= currentTime
+                    )
+                    || (
+                        !report.SLAWarningSentAt.HasValue
+                        && currentTime < report.DueAt.Value
+                        && report.SLAStartedAt.Value.AddHours(
+                            report.AppliedSLAHours.Value
+                            * WarningThresholdRatio) <= currentTime
+                    )
+                ))
+            /*
+             * Ưu tiên xử lý Report đã quá hạn trước.
+             */
+            .OrderBy(report =>
+                report.DueAt > currentTime)
+            .ThenBy(report => report.DueAt)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);
 
@@ -61,7 +89,8 @@ public sealed class ProcessSlaMonitoringCommandHandler
         var adminIds = await _dbContext.Users
             .AsNoTracking()
             .Where(user =>
-                user.Role.Name == "Admin")
+                user.IsActive
+                && user.Role.Name == "Admin")
             .Select(user => user.Id)
             .ToListAsync(cancellationToken);
 
@@ -89,9 +118,9 @@ public sealed class ProcessSlaMonitoringCommandHandler
             /*
              * Cảnh báo khi:
              *
-             * - Đã qua 80% thời gian SLA
+             * - Đã sử dụng ít nhất 80% SLA
              * - Chưa quá hạn
-             * - Chưa gửi cảnh báo trước đó
+             * - Chưa từng gửi cảnh báo
              */
             if (!report.SLAWarningSentAt.HasValue
                 && currentTime >= warningAt
@@ -106,8 +135,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                 warningReportCount++;
 
                 var warningRecipientIds =
-                    new HashSet<Guid>(
-                        adminIds);
+                    new HashSet<Guid>(adminIds);
 
                 if (report.AssignedStaffId.HasValue)
                 {
@@ -115,28 +143,42 @@ public sealed class ProcessSlaMonitoringCommandHandler
                         report.AssignedStaffId.Value);
                 }
 
-                foreach (var userId in warningRecipientIds)
-                {
-                    _dbContext.Notifications.Add(
-                        CreateNotification(
-                            userId: userId,
-                            reportId: report.Id,
-                            type: NotificationType.SLAWarning,
-                            title: "Báo cáo sắp hết hạn SLA",
-                            message:
-                                $"Báo cáo {report.Id} "
-                                + $"sắp hết hạn SLA lúc {dueAt:dd/MM/yyyy HH:mm} UTC.",
-                            createdAt: currentTime));
+                _notificationService.AddMany(
+                    userIds: warningRecipientIds,
+                    reportId: report.Id,
+                    type: NotificationType.SLAWarning,
+                    title: "Báo cáo sắp hết hạn SLA",
+                    message:
+                        $"Báo cáo {report.Id} "
+                        + $"sắp hết hạn SLA lúc "
+                        + $"{dueAt:dd/MM/yyyy HH:mm} UTC.",
+                    createdAt: currentTime);
 
-                    createdNotificationCount++;
-                }
+                createdNotificationCount +=
+                    warningRecipientIds.Count;
+
+                _auditLogService.Add(
+                    userId: null,
+                    action: AuditActions.SlaWarningSent,
+                    entityType: AuditEntityTypes.Report,
+                    entityId: report.Id.ToString(),
+                    detail: new
+                    {
+                        report.Status,
+                        report.SLAStartedAt,
+                        report.AppliedSLAHours,
+                        report.DueAt,
+                        report.SLAWarningSentAt,
+                        RecipientCount =
+                            warningRecipientIds.Count
+                    });
             }
 
             /*
-             * Xử lý khi quá hạn.
+             * Quá hạn SLA.
              *
-             * SLABreachedNotifiedAt ngăn job gửi
-             * thông báo trùng trong lần chạy sau.
+             * SLABreachedNotifiedAt bảo đảm mỗi chu kỳ SLA
+             * chỉ xử lý breach một lần.
              */
             if (!report.SLABreachedNotifiedAt.HasValue
                 && currentTime >= dueAt)
@@ -161,37 +203,9 @@ public sealed class ProcessSlaMonitoringCommandHandler
                  */
                 if (report.AssignedStaffId.HasValue)
                 {
-                    _dbContext.Notifications.Add(
-                        CreateNotification(
-                            userId:
-                                report.AssignedStaffId.Value,
-
-                            reportId:
-                                report.Id,
-
-                            type:
-                                NotificationType.SLABreached,
-
-                            title:
-                                "Báo cáo đã quá hạn SLA",
-
-                            message:
-                                $"Báo cáo {report.Id} "
-                                + "đã quá thời hạn xử lý.",
-
-                            createdAt:
-                                currentTime));
-
-                    createdNotificationCount++;
-                }
-
-                /*
-                 * Thông báo Citizen về việc xử lý bị trễ.
-                 */
-                _dbContext.Notifications.Add(
-                    CreateNotification(
+                    _notificationService.Add(
                         userId:
-                            report.CitizenId,
+                            report.AssignedStaffId.Value,
 
                         reportId:
                             report.Id,
@@ -200,52 +214,74 @@ public sealed class ProcessSlaMonitoringCommandHandler
                             NotificationType.SLABreached,
 
                         title:
-                            "Báo cáo đang xử lý chậm",
+                            "Báo cáo đã quá hạn SLA",
 
                         message:
-                            "Báo cáo của bạn đã quá thời hạn "
-                            + "xử lý dự kiến và đang được hệ thống "
-                            + "chuyển cấp theo dõi.",
+                            $"Báo cáo {report.Id} "
+                            + "đã quá thời hạn xử lý.",
 
                         createdAt:
-                            currentTime));
-
-                createdNotificationCount++;
-
-                /*
-                 * Escalation notification cho tất cả Admin.
-                 */
-                foreach (var adminId in adminIds)
-                {
-                    _dbContext.Notifications.Add(
-                        CreateNotification(
-                            userId:
-                                adminId,
-
-                            reportId:
-                                report.Id,
-
-                            type:
-                                NotificationType.Escalated,
-
-                            title:
-                                "Báo cáo SLA bị Escalated",
-
-                            message:
-                                $"Báo cáo {report.Id} "
-                                + "đã quá hạn SLA và cần Admin theo dõi.",
-
-                            createdAt:
-                                currentTime));
+                            currentTime);
 
                     createdNotificationCount++;
                 }
 
                 /*
-                 * Ghi vào timeline.
-                 *
-                 * OldStatus và NewStatus giống nhau vì SLA breach
-                 * không trực tiếp thay đổi trạng thái xử lý.
+                 * Thông báo cho Citizen.
+                 */
+                _notificationService.Add(
+                    userId:
+                        report.CitizenId,
+
+                    reportId:
+                        report.Id,
+
+                    type:
+                        NotificationType.SLABreached,
+
+                    title:
+                        "Báo cáo đang xử lý chậm",
+
+                    message:
+                        "Báo cáo của bạn đã quá thời hạn "
+                        + "xử lý dự kiến và đang được hệ thống "
+                        + "chuyển cấp theo dõi.",
+
+                    createdAt:
+                        currentTime);
+
+                createdNotificationCount++;
+
+                /*
+                 * Thông báo Escalated cho tất cả Admin
+                 * đang hoạt động.
+                 */
+                _notificationService.AddMany(
+                    userIds:
+                        adminIds,
+
+                    reportId:
+                        report.Id,
+
+                    type:
+                        NotificationType.Escalated,
+
+                    title:
+                        "Báo cáo SLA bị Escalated",
+
+                    message:
+                        $"Báo cáo {report.Id} "
+                        + "đã quá hạn SLA và cần Admin theo dõi.",
+
+                    createdAt:
+                        currentTime);
+
+                createdNotificationCount +=
+                    adminIds.Count;
+
+                /*
+                 * SLA breach không thay đổi ReportStatus,
+                 * vì vậy OldStatus và NewStatus giống nhau.
                  */
                 _dbContext.StatusUpdates.Add(
                     new StatusUpdate
@@ -263,11 +299,33 @@ public sealed class ProcessSlaMonitoringCommandHandler
                             report.Status,
 
                         Note =
-                            "Hệ thống phát hiện báo cáo đã quá hạn SLA "
-                            + "và chuyển cấp theo dõi.",
+                            "Hệ thống phát hiện báo cáo "
+                            + "đã quá hạn SLA và chuyển cấp "
+                            + "theo dõi.",
 
                         CreatedAt =
                             currentTime
+                    });
+
+                _auditLogService.Add(
+                    userId: null,
+                    action: AuditActions.SlaBreached,
+                    entityType: AuditEntityTypes.Report,
+                    entityId: report.Id.ToString(),
+                    detail: new
+                    {
+                        report.Status,
+                        report.SLAStartedAt,
+                        report.AppliedSLAHours,
+                        report.DueAt,
+                        report.SLABreachedNotifiedAt,
+                        report.IsEscalated,
+                        report.EscalatedAt,
+                        AssignedStaffNotified =
+                            report.AssignedStaffId.HasValue,
+                        CitizenNotified = true,
+                        AdminRecipientCount =
+                            adminIds.Count
                     });
             }
         }
@@ -275,6 +333,10 @@ public sealed class ProcessSlaMonitoringCommandHandler
         if (warningReportCount > 0
             || breachedReportCount > 0)
         {
+            /*
+             * Report, Notification, StatusUpdate và AuditLog
+             * được lưu chung trong một lần SaveChangesAsync.
+             */
             await _dbContext.SaveChangesAsync(
                 cancellationToken);
         }
@@ -291,41 +353,5 @@ public sealed class ProcessSlaMonitoringCommandHandler
 
             CreatedNotificationCount:
                 createdNotificationCount);
-    }
-
-    private static Notification CreateNotification(
-        Guid userId,
-        Guid reportId,
-        NotificationType type,
-        string title,
-        string message,
-        DateTime createdAt)
-    {
-        return new Notification
-        {
-            UserId =
-                userId,
-
-            ReportId =
-                reportId,
-
-            Type =
-                type,
-
-            Title =
-                title,
-
-            Message =
-                message,
-
-            IsRead =
-                false,
-
-            CreatedAt =
-                createdAt,
-
-            ReadAt =
-                null
-        };
     }
 }

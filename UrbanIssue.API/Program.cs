@@ -11,6 +11,8 @@ using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Infrastructure.Sqlserver;
 using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
+using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
 
 
 
@@ -86,6 +88,10 @@ builder.Services.AddHostedService<
 builder.Services.AddScoped<
     IAuditLogService,
     AuditLogService>();
+
+builder.Services.AddScoped<
+    INotificationService,
+    NotificationService>();
 
 var app =
     builder.Build();

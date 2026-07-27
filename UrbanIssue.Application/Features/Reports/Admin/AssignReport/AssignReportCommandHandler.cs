@@ -8,6 +8,10 @@ using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Admin.Common;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
+
+
+
 
 namespace UrbanIssue.Application.Features.Reports.Admin.AssignReport;
 
@@ -19,15 +23,18 @@ public sealed class AssignReportCommandHandler
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditLogService _auditLogService;
+    private readonly INotificationService _notificationService;
 
     public AssignReportCommandHandler(
-        IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService,
-        IAuditLogService auditLogService)
+    IApplicationDbContext dbContext,
+    ICurrentUserService currentUserService,
+    IAuditLogService auditLogService,
+    INotificationService notificationService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
     }
 
     public async Task<AdminReportActionResult> Handle(
@@ -155,6 +162,39 @@ public sealed class AssignReportCommandHandler
                     ? null
                     : request.Note.Trim()
             });
+        if (report.AssignedStaffId.HasValue)
+        {
+            _notificationService.Add(
+                userId: report.AssignedStaffId.Value,
+                reportId: report.Id,
+                type: NotificationType.ReportAssigned,
+                title: "Bạn được phân công báo cáo mới",
+                message:
+                    $"Bạn được phân công xử lý báo cáo tại "
+                    + $"{report.AddressText ?? "địa điểm chưa xác định"}.",
+                createdAt: currentTime);
+        }
+        else
+        {
+            var departmentStaffIds = await _dbContext.Users
+                .AsNoTracking()
+                .Where(user =>
+                    user.Role.Name == "Staff"
+                    && user.IsActive
+                    && user.DepartmentId == report.DepartmentId)
+                .Select(user => user.Id)
+                .ToListAsync(cancellationToken);
+
+            _notificationService.AddMany(
+                userIds: departmentStaffIds,
+                reportId: report.Id,
+                type: NotificationType.ReportAssigned,
+                title: "Phòng ban có báo cáo mới",
+                message:
+                    $"Báo cáo mới đã được phân công cho "
+                    + $"{department.Name}.",
+                createdAt: currentTime);
+        }
 
         /*
          * Report, StatusUpdate và AuditLog được lưu
