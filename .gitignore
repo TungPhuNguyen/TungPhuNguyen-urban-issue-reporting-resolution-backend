@@ -539,4 +539,4 @@ FodyWeavers.xsd
 
 UrbanIssue.API/wwwroot/uploads/*
 !UrbanIssue.API/wwwroot/uploads/.gitkeep
-/UrbanIssue.Application/UrbanIssue.Application.csproj
+

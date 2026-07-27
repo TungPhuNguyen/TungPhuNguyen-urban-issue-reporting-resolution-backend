@@ -13,7 +13,6 @@ using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
-using Microsoft.Extensions.FileProviders;
 
 
 
@@ -116,22 +115,6 @@ builder.Services.AddCors(options =>
 var app =
     builder.Build();
 
-var uploadsDirectory = Path.Combine(
-    builder.Environment.ContentRootPath,
-    "uploads");
-
-Directory.CreateDirectory(uploadsDirectory);
-
-app.UseStaticFiles(
-    new StaticFileOptions
-    {
-        FileProvider =
-            new PhysicalFileProvider(
-                uploadsDirectory),
-
-        RequestPath = "/uploads"
-    });
-
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -155,8 +138,6 @@ app.UseStaticFiles();
 app.UseHttpsRedirection();
 
 app.UseCors("FrontendPolicy");
-
-app.UseStaticFiles();
 
 app.UseAuthentication();
 

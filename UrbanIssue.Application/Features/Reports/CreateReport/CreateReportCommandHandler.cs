@@ -28,20 +28,6 @@ public sealed class CreateReportCommandHandler
     private readonly IAuditLogService _auditLogService;
 
     public CreateReportCommandHandler(
-        IApplicationDbContext dbContext,
-        ICurrentUserService currentUserService,
-        IFileStorageService fileStorageService)
-    {
-        _dbContext =
-            dbContext;
-
-        _currentUserService =
-            currentUserService;
-
-        _fileStorageService =
-            fileStorageService;
-    }
-    public CreateReportCommandHandler(
     IApplicationDbContext dbContext,
     ICurrentUserService currentUserService,
     IFileStorageService fileStorageService,
@@ -265,19 +251,20 @@ public sealed class CreateReportCommandHandler
             }
 
             var reportImages =
-                storedFiles
-                    .Select(storedFile =>
-                        new ReportImage
-                        {
-                            ReportId =
-                                report.Id,
+    storedFiles
+        .Select(storedFile =>
+            new ReportImage
+            {
+                ReportId =
+                    report.Id,
 
-                            ImageUrl =
-                                storedFile.PublicUrl,
+                ImageUrl =
+                    storedFile.PublicUrl,
 
-                        
-                        })
-                    .ToList();
+                UploadedAt =
+                    currentTime
+            })
+        .ToList();
 
             _dbContext.Reports.Add(
                 report);

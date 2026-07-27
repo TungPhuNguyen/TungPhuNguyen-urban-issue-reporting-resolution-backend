@@ -22,33 +22,29 @@ public sealed class GetRoutingRuleByIdQueryHandler
         GetRoutingRuleByIdQuery request,
         CancellationToken cancellationToken)
     {
-        var routingRule =
-            await _dbContext.RoutingRules
-                .AsNoTracking()
-                .Where(rule =>
-                    rule.Id == request.Id)
-                .Select(rule =>
-                    new RoutingRuleResult(
-                        rule.Id,
-                        rule.CategoryId,
-                        rule.Category.Name,
-                        rule.AreaId,
-                        rule.Area.Name,
-                        rule.DepartmentId,
-                        rule.Department.Name,
-                        rule.PriorityOrder,
-                        rule.IsActive,
-                        rule.CreatedAt,
-                        rule.UpdatedAt))
-                .SingleOrDefaultAsync(
-                    cancellationToken);
+        var result = await _dbContext.RoutingRules
+            .AsNoTracking()
+            .Where(rule => rule.Id == request.Id)
+            .Select(rule => new RoutingRuleResult(
+                rule.Id,
+                rule.CategoryId,
+                rule.Category.Name,
+                rule.AreaId,
+                rule.Area.Name,
+                rule.DepartmentId,
+                rule.Department.Name,
+                rule.PriorityOrder,
+                rule.IsActive,
+                rule.CreatedAt,
+                rule.UpdatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
 
-        if (routingRule is null)
+        if (result is null)
         {
             throw new KeyNotFoundException(
-                $"Không tìm thấy quy tắc định tuyến có ID {request.Id}.");
+                $"Không tìm thấy Routing Rule có ID {request.Id}.");
         }
 
-        return routingRule;
+        return result;
     }
 }
