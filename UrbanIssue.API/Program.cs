@@ -13,6 +13,7 @@ using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
+using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
 
 
 
@@ -114,6 +115,19 @@ builder.Services.AddCors(options =>
 
 var app =
     builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    using var seedScope =
+        app.Services.CreateScope();
+
+    var seeder =
+        seedScope.ServiceProvider
+            .GetRequiredService<
+                HanoiDevelopmentDataSeeder>();
+
+    await seeder.SeedAsync();
+}
 
 app.UseExceptionHandler();
 

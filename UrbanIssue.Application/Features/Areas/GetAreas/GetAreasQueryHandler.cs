@@ -34,10 +34,13 @@ public sealed class GetAreasQueryHandler
                 request.Search.Trim();
 
             areasQuery =
-                areasQuery.Where(
-                    area =>
-                        area.Name.Contains(normalizedSearch)
-                        || area.Code.Contains(normalizedSearch));
+    areasQuery.Where(
+        area =>
+            area.Name.Contains(normalizedSearch)
+            || (
+                area.Code != null
+                && area.Code.Contains(normalizedSearch)
+            ));
         }
 
         if (request.ParentAreaId.HasValue)

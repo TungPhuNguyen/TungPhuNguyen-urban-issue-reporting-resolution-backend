@@ -3,7 +3,7 @@ namespace UrbanIssue.Application.Features.Areas.Common;
 public sealed record AreaResult(
     int Id,
     string Name,
-    string Code,
+    string? Code,
     int? ParentAreaId,
     string? ParentAreaName,
     bool IsActive,
