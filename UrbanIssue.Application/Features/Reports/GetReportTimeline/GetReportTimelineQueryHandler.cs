@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using UrbanIssue.Application.Common.Exceptions;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
+using UrbanIssue.Domain.Enums;
 
 namespace UrbanIssue.Application.Features.Reports.GetReportTimeline;
 
@@ -11,9 +13,7 @@ public sealed class GetReportTimelineQueryHandler
         GetReportTimelineResult>
 {
     private readonly IApplicationDbContext _dbContext;
-
-    private readonly ICurrentUserService
-        _currentUserService;
+    private readonly ICurrentUserService _currentUserService;
 
     public GetReportTimelineQueryHandler(
         IApplicationDbContext dbContext,
@@ -27,29 +27,25 @@ public sealed class GetReportTimelineQueryHandler
         GetReportTimelineQuery request,
         CancellationToken cancellationToken)
     {
-        var citizenId =
-            _currentUserService.UserId;
+        var currentUserId = _currentUserService.UserId;
+        var currentRole = _currentUserService.Role;
 
-        /*
-         * Kiểm tra đồng thời ReportId và CitizenId.
-         *
-         * Citizen không sở hữu Report cũng nhận 404,
-         * tránh làm lộ Report có tồn tại hay không.
-         */
-        var report =
-            await _dbContext.Reports
-                .AsNoTracking()
-                .Where(report =>
-                    report.Id == request.ReportId
-                    && report.CitizenId == citizenId)
-                .Select(report =>
-                    new
-                    {
-                        report.Id,
-                        report.Status
-                    })
-                .SingleOrDefaultAsync(
-                    cancellationToken);
+        if (string.IsNullOrWhiteSpace(currentRole))
+        {
+            throw new UnauthorizedAccessException(
+                "Access token không chứa Role hợp lệ.");
+        }
+
+        var report = await _dbContext.Reports
+            .AsNoTracking()
+            .Where(item => item.Id == request.ReportId)
+            .Select(item => new TimelineReportAccess(
+                item.Id,
+                item.Status,
+                item.CitizenId,
+                item.DepartmentId,
+                item.AssignedStaffId))
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (report is null)
         {
@@ -57,35 +53,90 @@ public sealed class GetReportTimelineQueryHandler
                 $"Không tìm thấy báo cáo có ID {request.ReportId}.");
         }
 
-        var timelineItems =
-            await _dbContext.StatusUpdates
-                .AsNoTracking()
-                .Where(statusUpdate =>
-                    statusUpdate.ReportId
-                        == request.ReportId)
-                .OrderBy(statusUpdate =>
-                    statusUpdate.CreatedAt)
-                .ThenBy(statusUpdate =>
-                    statusUpdate.Id)
-                .Select(statusUpdate =>
-                    new ReportTimelineItemResult(
-                        statusUpdate.Id,
-                        statusUpdate.OldStatus,
-                        statusUpdate.NewStatus,
-                        statusUpdate.Note,
-                        statusUpdate.CreatedAt,
+        var canView = currentRole switch
+        {
+            "Admin" => true,
+            "Citizen" => report.CitizenId == currentUserId,
+            "Staff" => await CanStaffViewAsync(
+                report,
+                currentUserId,
+                cancellationToken),
+            _ => false
+        };
 
-                        statusUpdate.Images
-                            .OrderBy(image => image.Id)
-                            .Select(image =>
-                                image.ImageUrl)
-                            .ToList()))
-                .ToListAsync(
-                    cancellationToken);
+        /*
+         * Trả 404 thay vì 403 để không làm lộ sự tồn tại
+         * của Report cho tài khoản không có quyền xem.
+         */
+        if (!canView)
+        {
+            throw new KeyNotFoundException(
+                $"Không tìm thấy báo cáo có ID {request.ReportId}.");
+        }
+
+        var timelineItems = await _dbContext.StatusUpdates
+            .AsNoTracking()
+            .Where(statusUpdate =>
+                statusUpdate.ReportId == request.ReportId)
+            .OrderBy(statusUpdate => statusUpdate.CreatedAt)
+            .ThenBy(statusUpdate => statusUpdate.Id)
+            .Select(statusUpdate =>
+                new ReportTimelineItemResult(
+                    statusUpdate.Id,
+                    statusUpdate.OldStatus,
+                    statusUpdate.NewStatus,
+                    statusUpdate.Note,
+                    statusUpdate.UpdatedByUserId,
+                    statusUpdate.UpdatedByUser == null
+                        ? null
+                        : statusUpdate.UpdatedByUser.FullName,
+                    statusUpdate.CreatedAt,
+                    statusUpdate.Images
+                        .OrderBy(image => image.Id)
+                        .Select(image => image.ImageUrl)
+                        .ToList()))
+            .ToListAsync(cancellationToken);
 
         return new GetReportTimelineResult(
             ReportId: report.Id,
             CurrentStatus: report.Status,
             Items: timelineItems);
     }
+
+    private async Task<bool> CanStaffViewAsync(
+        TimelineReportAccess report,
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var staff = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user =>
+                user.Id == staffId
+                && user.IsActive
+                && user.Role.Name == "Staff")
+            .Select(user => new
+            {
+                user.DepartmentId
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (staff is null || !staff.DepartmentId.HasValue)
+        {
+            throw new ConflictException(
+                "Tài khoản Staff chưa được gán phòng ban.");
+        }
+
+        return report.DepartmentId == staff.DepartmentId.Value
+            && (
+                report.Status == ReportStatus.Assigned
+                || report.AssignedStaffId == staffId
+            );
+    }
+
+    private sealed record TimelineReportAccess(
+        Guid Id,
+        ReportStatus Status,
+        Guid CitizenId,
+        int? DepartmentId,
+        Guid? AssignedStaffId);
 }

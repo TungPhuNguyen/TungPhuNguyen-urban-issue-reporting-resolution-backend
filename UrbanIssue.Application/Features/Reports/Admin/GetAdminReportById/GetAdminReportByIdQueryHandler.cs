@@ -81,6 +81,7 @@ public sealed class GetAdminReportByIdQueryHandler
                     report.ResolvedAt,
                     report.ClosedAt,
 
+                    report.HasSubmittedComplaint,
                     report.ComplaintSubmittedAt,
                     report.ComplaintReason,
 

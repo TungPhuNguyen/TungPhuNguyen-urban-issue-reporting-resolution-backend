@@ -55,6 +55,10 @@ public sealed record StaffReportDetailResult(
     bool IsEscalated,
     DateTime? EscalatedAt,
 
+    bool HasSubmittedComplaint,
+    DateTime? ComplaintSubmittedAt,
+    string? ComplaintReason,
+
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     DateTime? AcceptedAt,

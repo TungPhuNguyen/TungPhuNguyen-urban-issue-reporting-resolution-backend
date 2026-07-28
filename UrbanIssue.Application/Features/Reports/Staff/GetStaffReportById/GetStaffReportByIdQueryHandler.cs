@@ -32,7 +32,10 @@ public sealed class GetStaffReportByIdQueryHandler
 
         var departmentId = await _dbContext.Users
             .AsNoTracking()
-            .Where(user => user.Id == staffId)
+            .Where(user =>
+                user.Id == staffId
+                && user.IsActive
+                && user.Role.Name == "Staff")
             .Select(user => user.DepartmentId)
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -95,6 +98,10 @@ public sealed class GetStaffReportByIdQueryHandler
 
                     report.IsEscalated,
                     report.EscalatedAt,
+
+                    report.HasSubmittedComplaint,
+                    report.ComplaintSubmittedAt,
+                    report.ComplaintReason,
 
                     report.CreatedAt,
                     report.UpdatedAt,

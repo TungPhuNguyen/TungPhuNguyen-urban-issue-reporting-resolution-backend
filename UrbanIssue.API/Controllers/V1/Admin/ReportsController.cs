@@ -9,6 +9,7 @@ using UrbanIssue.Application.Features.Reports.Admin.GetAdminReportById;
 using UrbanIssue.Application.Features.Reports.Admin.GetAdminReports;
 using UrbanIssue.Application.Features.Reports.Admin.ReassignReport;
 using UrbanIssue.Application.Features.Reports.Admin.RejectReport;
+using UrbanIssue.Application.Features.Reports.GetReportTimeline;
 using UrbanIssue.Application.Features.Reports.PostResolution.Common;
 using UrbanIssue.Application.Features.Reports.PostResolution.DismissComplaint;
 using UrbanIssue.Application.Features.Reports.PostResolution.ReopenReport;
@@ -58,6 +59,26 @@ public sealed class ReportsController : ControllerBase
     {
         var result = await _sender.Send(
             new GetAdminReportByIdQuery(id),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+
+    [HttpGet("{id:guid}/timeline")]
+    [ProducesResponseType(
+        typeof(GetReportTimelineResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GetReportTimelineResult>>
+        GetTimeline(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetReportTimelineQuery(id),
             cancellationToken);
 
         return Ok(result);

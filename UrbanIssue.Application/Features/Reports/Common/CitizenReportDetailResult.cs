@@ -38,8 +38,13 @@ public sealed record CitizenReportDetailResult(
     DateTime? ResolvedAt,
     DateTime? ClosedAt,
 
+    bool HasSubmittedComplaint,
+    DateTime? ComplaintSubmittedAt,
+    string? ComplaintReason,
+
     DateTime? RejectedAt,
     string? RejectedReason,
 
     DateTime? ReopenedAt,
+
     string? ReopenReason);

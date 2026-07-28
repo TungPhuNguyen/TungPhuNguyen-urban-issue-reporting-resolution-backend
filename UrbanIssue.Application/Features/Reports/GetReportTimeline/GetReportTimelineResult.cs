@@ -8,9 +8,11 @@ public sealed record GetReportTimelineResult(
     IReadOnlyList<ReportTimelineItemResult> Items);
 
 public sealed record ReportTimelineItemResult(
-    long Id,
+    int Id,
     ReportStatus? OldStatus,
     ReportStatus NewStatus,
     string? Note,
+    Guid? UpdatedByUserId,
+    string? UpdatedByUserName,
     DateTime CreatedAt,
     IReadOnlyList<string> ImageUrls);

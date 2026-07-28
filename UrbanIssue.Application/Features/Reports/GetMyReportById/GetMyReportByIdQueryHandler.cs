@@ -12,9 +12,7 @@ public sealed class GetMyReportByIdQueryHandler
         CitizenReportDetailResult>
 {
     private readonly IApplicationDbContext _dbContext;
-
-    private readonly ICurrentUserService
-        _currentUserService;
+    private readonly ICurrentUserService _currentUserService;
 
     public GetMyReportByIdQueryHandler(
         IApplicationDbContext dbContext,
@@ -28,72 +26,70 @@ public sealed class GetMyReportByIdQueryHandler
         GetMyReportByIdQuery request,
         CancellationToken cancellationToken)
     {
-        var citizenId =
-            _currentUserService.UserId;
+        var citizenId = _currentUserService.UserId;
 
         /*
          * Lọc đồng thời theo ReportId và CitizenId.
-         *
          * Citizen khác truy cập Report không thuộc mình
          * cũng nhận 404 để tránh làm lộ dữ liệu.
          */
-        var report =
-            await _dbContext.Reports
-                .AsNoTracking()
-                .Where(report =>
-                    report.Id == request.Id
-                    && report.CitizenId == citizenId)
-                .Select(report =>
-                    new CitizenReportDetailResult(
-                        report.Id,
+        var report = await _dbContext.Reports
+            .AsNoTracking()
+            .Where(item =>
+                item.Id == request.Id
+                && item.CitizenId == citizenId)
+            .Select(item =>
+                new CitizenReportDetailResult(
+                    item.Id,
 
-                        report.CategoryId,
-                        report.Category.Name,
+                    item.CategoryId,
+                    item.Category.Name,
 
-                        report.AreaId,
-                        report.Area.Name,
+                    item.AreaId,
+                    item.Area.Name,
 
-                        report.DepartmentId,
-                        report.Department == null
-                            ? null
-                            : report.Department.Name,
+                    item.DepartmentId,
+                    item.Department == null
+                        ? null
+                        : item.Department.Name,
 
-                        report.Description,
-                        report.AddressText,
+                    item.Description,
+                    item.AddressText,
 
-                        report.Latitude,
-                        report.Longitude,
+                    item.Latitude,
+                    item.Longitude,
 
-                        report.Priority,
-                        report.Status,
+                    item.Priority,
+                    item.Status,
 
-                        report.RequiresManualAssignment,
+                    item.RequiresManualAssignment,
+                    item.Upvotes.Count(),
 
-                        report.Upvotes.Count(),
+                    item.Images
+                        .OrderBy(image => image.Id)
+                        .Select(image => image.ImageUrl)
+                        .ToList(),
 
-                        report.Images
-                            .OrderBy(image => image.Id)
-                            .Select(image =>
-                                image.ImageUrl)
-                            .ToList(),
+                    item.AppliedSLAHours,
+                    item.SLAStartedAt,
+                    item.DueAt,
 
-                        report.AppliedSLAHours,
-                        report.SLAStartedAt,
-                        report.DueAt,
+                    item.CreatedAt,
+                    item.UpdatedAt,
+                    item.AcceptedAt,
+                    item.ResolvedAt,
+                    item.ClosedAt,
 
-                        report.CreatedAt,
-                        report.UpdatedAt,
-                        report.AcceptedAt,
-                        report.ResolvedAt,
-                        report.ClosedAt,
+                    item.HasSubmittedComplaint,
+                    item.ComplaintSubmittedAt,
+                    item.ComplaintReason,
 
-                        report.RejectedAt,
-                        report.RejectedReason,
+                    item.RejectedAt,
+                    item.RejectedReason,
 
-                        report.ReopenedAt,
-                        report.ReopenReason))
-                .SingleOrDefaultAsync(
-                    cancellationToken);
+                    item.ReopenedAt,
+                    item.ReopenReason))
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (report is null)
         {

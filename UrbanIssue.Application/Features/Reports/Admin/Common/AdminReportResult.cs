@@ -69,6 +69,7 @@ public sealed record AdminReportDetailResult(
     DateTime? ResolvedAt,
     DateTime? ClosedAt,
 
+    bool HasSubmittedComplaint,
     DateTime? ComplaintSubmittedAt,
     string? ComplaintReason,
 

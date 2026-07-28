@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.API.Contracts.Reports.Staff;
 using UrbanIssue.Application.Common.Models;
+using UrbanIssue.Application.Features.Reports.GetReportTimeline;
 using UrbanIssue.Application.Features.Reports.Staff.AcceptReport;
 using UrbanIssue.Application.Features.Reports.Staff.AddProgressNote;
 using UrbanIssue.Application.Features.Reports.Staff.Common;
@@ -48,6 +49,25 @@ public sealed class ReportsController : ControllerBase
     {
         var result = await _sender.Send(
             new GetStaffReportByIdQuery(id),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/timeline")]
+    [ProducesResponseType(
+        typeof(GetReportTimelineResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GetReportTimelineResult>>
+        GetTimeline(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetReportTimelineQuery(id),
             cancellationToken);
 
         return Ok(result);

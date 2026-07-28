@@ -1,4 +1,4 @@
-# Backend Project Structure — ERD v4
+# Backend Project Structure
 
 ## 1. Dependency direction
 
@@ -11,112 +11,137 @@ UrbanIssue.Application
   -> UrbanIssue.Domain
 
 UrbanIssue.Infrastructure.Sqlserver
+  -> UrbanIssue.Application
   -> UrbanIssue.Domain
 
 UrbanIssue.Domain
   -> no project dependency
 ```
 
-## 2. Projects
+## 2. UrbanIssue.Domain
 
-### UrbanIssue.Domain
+Chứa entity và enum nghiệp vụ.
 
-Dành cho entity, enum, value object, domain event, repository/service abstraction và domain rule thuần.
+Các entity chính:
 
-ERD v4 hiện có 16 bảng dự kiến:
+```text
+Role, User, RefreshToken
+Category, Area, Department, RoutingRule, SLAConfig
+Report, ReportImage, StatusUpdate, StatusUpdateImage
+Upvote, Comment, Notification, AuditLog
+```
 
-1. Role
-2. User
-3. RefreshToken
-4. Category
-5. Area
-6. Department
-7. RoutingRule
-8. SLAConfig
-9. Report
-10. ReportImage
-11. StatusUpdate
-12. StatusUpdateImage
-13. Upvote
-14. Comment
-15. Notification
-16. AuditLog
+`Report` lưu trạng thái, phân công, SLA snapshot, khiếu nại, từ chối, mở lại và thời điểm hoàn tất.
 
-Chưa tạo class để giữ đúng yêu cầu “chỉ tạo khung”.
+## 3. UrbanIssue.Application
 
-### UrbanIssue.Application
+Tổ chức theo feature/use case và sử dụng MediatR.
 
-Tổ chức theo feature/use case. Mỗi feature có sẵn thư mục `Commands`, `Queries`, `Validators`.
+```text
+Features/
+  Auth/
+  Categories/
+  Areas/
+  Departments/
+  RoutingRules/
+  SlaConfigs/
+  Reports/
+  Notifications/
+  AuditLogs/
+  Dashboard/
+  Users/
+```
 
-Các module chính:
+Các nhóm Report:
 
-- Auth
-- Users / Roles
-- Categories / Areas / Departments
-- RoutingRules
-- SlaConfigs
-- Reports
-- Upvotes
-- Complaints
-- Notifications
-- Dashboards
-- AuditLogs
-- PublicData
+```text
+CreateReport
+CheckDuplicateReports
+GetMyReports / GetMyReportById
+GetReportTimeline
+Upvotes / Comments
+Staff: Accept, StartProcessing, ProgressNote,
+       ProgressImages, Resolve, Dashboard
+Admin: Assign, Reassign, Reject
+PostResolution: Complaint, Close, Reopen,
+                DismissComplaint, AutoClose
+SlaMonitoring
+Public
+```
 
-Riêng `Reports` có thêm khung thư mục cho các use case quan trọng của Business Analysis v4:
+Validation dùng FluentValidation và chạy qua `ValidationBehavior`.
 
-- Tạo báo cáo
-- Gợi ý báo cáo trùng
-- Phân công thủ công
-- Tiếp nhận báo cáo và áp dụng SLA
-- Bắt đầu xử lý
-- Thêm ghi chú tiến độ
-- Đánh dấu đã xử lý kèm ảnh minh chứng
-- Từ chối báo cáo
-- Yêu cầu xử lý lại sau khiếu nại
-- Tái phân công báo cáo bị escalation
-- Lấy timeline, bản đồ công khai, báo cáo của tôi và danh sách theo đơn vị
+## 4. UrbanIssue.Infrastructure.Sqlserver
 
-### UrbanIssue.Infrastructure.Sqlserver
+Chứa:
 
-Dành cho EF Core, SQL Server, persistence model, entity configuration, repository implementation, external service và background job.
+- `ApplicationDbContext`
+- Entity configurations
+- EF Core migrations
+- Development seed data
+- JWT/password/refresh-token services
+- AuditLog và Notification services
 
-Background job đã có khung thư mục cho:
+Các enum Report được persist dưới dạng string.
 
-- `SlaMonitoring`: cảnh báo sắp trễ, đã trễ và escalation
-- `AutoCloseReports`: tự đóng sau 7 ngày nếu không có khiếu nại hợp lệ
+## 5. UrbanIssue.API
 
-### UrbanIssue.API
+Controller được chia theo role:
 
-Dành cho controller, request/response model, middleware, mapping và cấu hình presentation.
+```text
+Controllers/V1/Auth
+Controllers/V1/Public
+Controllers/V1/Citizen
+Controllers/V1/Staff
+Controllers/V1/Admin
+```
 
-Controller được chia theo nhóm endpoint:
+API chịu trách nhiệm:
 
-- Auth
-- Public
-- Citizen
-- Staff
-- Admin
+- Authentication/authorization
+- Request binding
+- Multipart upload
+- OpenAPI/Swagger
+- CORS và static file serving
+- Background services cho SLA và auto-close
+- Global ProblemDetails exception handling
 
-## 3. Chưa được triển khai
+## 6. Timeline
 
-- Entity / Enum / Value Object
-- DataModel / EntityTypeConfiguration
-- DbContext / Migration / Seed data
-- Repository / Service
-- Command / Query / Handler / Validator
-- Controller nghiệp vụ
-- JWT access token / refresh token
-- Upload ảnh
-- RoutingRule logic
-- SLA logic / notification / escalation
-- Auto-close / complaint / reopen flow
-- Dashboard / AuditLog
+`StatusUpdate` là nguồn timeline thống nhất cho Citizen, Staff và Admin.
 
-## 4. Bước tiếp theo đề xuất
+Mỗi timeline item trả:
 
-1. Tạo enum `ReportStatus`, `ReportPriority`, `NotificationType`, `UserRole`.
-2. Tạo entity trong Domain theo ERD v4.
-3. Tạo persistence model và Fluent API configuration.
-4. Tạo `ApplicationDbContext`, migration đầu tiên và seed Role.
-5. Làm Auth trước, sau đó CRUD danh mục, rồi mới đến Report flow.
+```text
+Id
+OldStatus
+NewStatus
+Note
+UpdatedByUserId
+UpdatedByUserName
+CreatedAt
+ImageUrls
+```
+
+Phân quyền:
+
+- Citizen chỉ xem Report của mình.
+- Staff xem Report thuộc Department và tuân thủ quyền nhận việc.
+- Admin xem toàn hệ thống.
+
+## 7. Quy tắc repository
+
+Không đưa vào source archive:
+
+```text
+.git/
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.patch
+TestResults/
+Runtime uploads
+Production secrets
+```
