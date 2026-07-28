@@ -2,8 +2,6 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.API.Contracts.Reports.Admin;
-using UrbanIssue.Application.Features.Reports.PostResolution.Common;
-using UrbanIssue.Application.Features.Reports.PostResolution.ReopenReport;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Admin.AssignReport;
 using UrbanIssue.Application.Features.Reports.Admin.Common;
@@ -11,7 +9,9 @@ using UrbanIssue.Application.Features.Reports.Admin.GetAdminReportById;
 using UrbanIssue.Application.Features.Reports.Admin.GetAdminReports;
 using UrbanIssue.Application.Features.Reports.Admin.ReassignReport;
 using UrbanIssue.Application.Features.Reports.Admin.RejectReport;
-
+using UrbanIssue.Application.Features.Reports.PostResolution.Common;
+using UrbanIssue.Application.Features.Reports.PostResolution.DismissComplaint;
+using UrbanIssue.Application.Features.Reports.PostResolution.ReopenReport;
 
 namespace UrbanIssue.API.Controllers.V1.Admin;
 
@@ -25,6 +25,130 @@ public sealed class ReportsController : ControllerBase
     public ReportsController(ISender sender)
     {
         _sender = sender;
+    }
+
+    [HttpGet]
+    [ProducesResponseType(
+        typeof(PagedResult<AdminReportSummaryResult>),
+        StatusCodes.Status200OK)]
+    public async Task<
+        ActionResult<PagedResult<AdminReportSummaryResult>>>
+        GetReports(
+            [FromQuery] GetAdminReportsQuery query,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            query,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(
+        typeof(AdminReportDetailResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AdminReportDetailResult>>
+        GetById(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetAdminReportByIdQuery(id),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/assign")]
+    [ProducesResponseType(
+        typeof(AdminReportActionResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdminReportActionResult>>
+        Assign(
+            Guid id,
+            [FromBody] AssignReportRequest request,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new AssignReportCommand(
+                ReportId: id,
+                DepartmentId: request.DepartmentId,
+                StaffId: request.StaffId,
+                Note: request.Note),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/reassign")]
+    [ProducesResponseType(
+        typeof(AdminReportActionResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdminReportActionResult>>
+        Reassign(
+            Guid id,
+            [FromBody] ReassignReportRequest request,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ReassignReportCommand(
+                ReportId: id,
+                DepartmentId: request.DepartmentId,
+                StaffId: request.StaffId,
+                Reason: request.Reason),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/reject")]
+    [ProducesResponseType(
+        typeof(AdminReportActionResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdminReportActionResult>>
+        Reject(
+            Guid id,
+            [FromBody] RejectReportRequest request,
+            CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new RejectReportCommand(
+                ReportId: id,
+                Reason: request.Reason),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpPost("{id:guid}/reopen")]
@@ -54,119 +178,28 @@ public sealed class ReportsController : ControllerBase
 
         return Ok(result);
     }
-    [HttpGet]
-    [ProducesResponseType(
-    typeof(PagedResult<AdminReportSummaryResult>),
-    StatusCodes.Status200OK)]
-    public async Task<
-    ActionResult<PagedResult<AdminReportSummaryResult>>>
-    GetReports(
-        [FromQuery] GetAdminReportsQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await _sender.Send(
-            query,
-            cancellationToken);
 
-        return Ok(result);
-    }
-    [HttpGet("{id:guid}")]
+    [HttpPost("{id:guid}/dismiss-complaint")]
     [ProducesResponseType(
-    typeof(AdminReportDetailResult),
-    StatusCodes.Status200OK)]
+        typeof(PostResolutionActionResult),
+        StatusCodes.Status200OK)]
     [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AdminReportDetailResult>>
-    GetById(
-        Guid id,
-        CancellationToken cancellationToken)
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+        typeof(ProblemDetails),
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PostResolutionActionResult>>
+        DismissComplaint(
+            Guid id,
+            [FromBody] DismissComplaintRequest request,
+            CancellationToken cancellationToken)
     {
         var result = await _sender.Send(
-            new GetAdminReportByIdQuery(id),
-            cancellationToken);
-
-        return Ok(result);
-    }
-    [HttpPost("{id:guid}/assign")]
-    [ProducesResponseType(
-    typeof(AdminReportActionResult),
-    StatusCodes.Status200OK)]
-    [ProducesResponseType(
-    typeof(ValidationProblemDetails),
-    StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status404NotFound)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AdminReportActionResult>>
-    Assign(
-        Guid id,
-        [FromBody] AssignReportRequest request,
-        CancellationToken cancellationToken)
-    {
-        var result = await _sender.Send(
-            new AssignReportCommand(
-                ReportId: id,
-                DepartmentId: request.DepartmentId,
-                StaffId: request.StaffId,
-                Note: request.Note),
-            cancellationToken);
-
-        return Ok(result);
-    }
-    [HttpPost("{id:guid}/reassign")]
-    [ProducesResponseType(
-    typeof(AdminReportActionResult),
-    StatusCodes.Status200OK)]
-    [ProducesResponseType(
-    typeof(ValidationProblemDetails),
-    StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status404NotFound)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AdminReportActionResult>>
-    Reassign(
-        Guid id,
-        [FromBody] ReassignReportRequest request,
-        CancellationToken cancellationToken)
-    {
-        var result = await _sender.Send(
-            new ReassignReportCommand(
-                ReportId: id,
-                DepartmentId: request.DepartmentId,
-                StaffId: request.StaffId,
-                Reason: request.Reason),
-            cancellationToken);
-
-        return Ok(result);
-    }
-    [HttpPost("{id:guid}/reject")]
-    [ProducesResponseType(
-    typeof(AdminReportActionResult),
-    StatusCodes.Status200OK)]
-    [ProducesResponseType(
-    typeof(ValidationProblemDetails),
-    StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status404NotFound)]
-    [ProducesResponseType(
-    typeof(ProblemDetails),
-    StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AdminReportActionResult>>
-    Reject(
-        Guid id,
-        [FromBody] RejectReportRequest request,
-        CancellationToken cancellationToken)
-    {
-        var result = await _sender.Send(
-            new RejectReportCommand(
+            new DismissComplaintCommand(
                 ReportId: id,
                 Reason: request.Reason),
             cancellationToken);

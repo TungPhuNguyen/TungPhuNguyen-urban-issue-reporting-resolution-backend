@@ -10,11 +10,11 @@ using UrbanIssue.Application.Features.Reports.PostResolution.Common;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
 
-namespace UrbanIssue.Application.Features.Reports.PostResolution.ReopenReport;
+namespace UrbanIssue.Application.Features.Reports.PostResolution.DismissComplaint;
 
-public sealed class ReopenReportCommandHandler
+public sealed class DismissComplaintCommandHandler
     : IRequestHandler<
-        ReopenReportCommand,
+        DismissComplaintCommand,
         PostResolutionActionResult>
 {
     private readonly IApplicationDbContext _dbContext;
@@ -22,7 +22,7 @@ public sealed class ReopenReportCommandHandler
     private readonly IAuditLogService _auditLogService;
     private readonly INotificationService _notificationService;
 
-    public ReopenReportCommandHandler(
+    public DismissComplaintCommandHandler(
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
         IAuditLogService auditLogService,
@@ -35,7 +35,7 @@ public sealed class ReopenReportCommandHandler
     }
 
     public async Task<PostResolutionActionResult> Handle(
-        ReopenReportCommand request,
+        DismissComplaintCommand request,
         CancellationToken cancellationToken)
     {
         var adminId = _currentUserService.UserId;
@@ -54,7 +54,7 @@ public sealed class ReopenReportCommandHandler
         if (report.Status != ReportStatus.Resolved)
         {
             throw new ConflictException(
-                "Chỉ có thể mở lại báo cáo "
+                "Chỉ có thể xử lý khiếu nại của báo cáo "
                 + "đang ở trạng thái Resolved.");
         }
 
@@ -65,66 +65,28 @@ public sealed class ReopenReportCommandHandler
         {
             throw new ConflictException(
                 "Báo cáo không có khiếu nại "
-                + "đang chờ xử lý.");
-        }
-
-        if (!report.AssignedStaffId.HasValue)
-        {
-            throw new ConflictException(
-                "Báo cáo chưa có Staff phụ trách "
-                + "để tiếp tục xử lý.");
-        }
-
-        if (!report.AppliedSLAHours.HasValue
-            || report.AppliedSLAHours.Value <= 0)
-        {
-            throw new ConflictException(
-                "Báo cáo chưa có SLA hợp lệ "
-                + "để khởi động lại.");
+                + "đang chờ Admin xem xét.");
         }
 
         var currentTime = DateTime.UtcNow;
         var oldStatus = report.Status;
-
-        var oldResolvedAt = report.ResolvedAt;
-        var oldDueAt = report.DueAt;
+        var adminReason = request.Reason.Trim();
         var complaintSubmittedAt =
             report.ComplaintSubmittedAt;
         var complaintReason =
             report.ComplaintReason.Trim();
-        var adminReason =
-            request.Reason.Trim();
-        var assignedStaffId =
-            report.AssignedStaffId.Value;
 
-        report.Status = ReportStatus.InProgress;
-        report.ReopenedAt = currentTime;
-        report.ReopenedByUserId = adminId;
-        report.ReopenReason = adminReason;
-        report.ResolvedAt = null;
-        report.ClosedAt = null;
+        report.Status = ReportStatus.Closed;
+        report.ClosedAt = currentTime;
+        report.UpdatedAt = currentTime;
 
         /*
-         * Bắt đầu chu kỳ SLA mới bằng snapshot
-         * AppliedSLAHours đã áp dụng trước đó.
-         */
-        report.SLAStartedAt = currentTime;
-        report.DueAt = currentTime.AddHours(
-            report.AppliedSLAHours.Value);
-
-        report.SLAWarningSentAt = null;
-        report.SLABreachedNotifiedAt = null;
-        report.IsEscalated = false;
-        report.EscalatedAt = null;
-
-        /*
-         * Xóa trạng thái khiếu nại đang chờ để Report
-         * tiếp tục xử lý. HasSubmittedComplaint vẫn giữ
-         * true nhằm chặn Citizen khiếu nại lần hai.
+         * Xóa trạng thái khiếu nại đang chờ.
+         * HasSubmittedComplaint vẫn giữ true để bảo đảm
+         * Report không thể được khiếu nại lần thứ hai.
          */
         report.ComplaintSubmittedAt = null;
         report.ComplaintReason = null;
-        report.UpdatedAt = currentTime;
 
         _dbContext.StatusUpdates.Add(
             new StatusUpdate
@@ -132,61 +94,42 @@ public sealed class ReopenReportCommandHandler
                 ReportId = report.Id,
                 UpdatedByUserId = adminId,
                 OldStatus = oldStatus,
-                NewStatus = ReportStatus.InProgress,
+                NewStatus = ReportStatus.Closed,
                 Note =
-                    "Admin chấp nhận khiếu nại và mở lại "
-                    + $"báo cáo. Khiếu nại: {complaintReason}. "
-                    + $"Lý do mở lại: {adminReason}",
+                    "Admin không chấp nhận khiếu nại và "
+                    + $"đóng báo cáo. Khiếu nại: "
+                    + $"{complaintReason}. Lý do: "
+                    + $"{adminReason}",
                 CreatedAt = currentTime
             });
 
         _auditLogService.Add(
             userId: adminId,
-            action: AuditActions.ReportReopened,
+            action: AuditActions.ComplaintDismissed,
             entityType: AuditEntityTypes.Report,
             entityId: report.Id.ToString(),
             detail: new
             {
                 OldStatus = oldStatus,
                 NewStatus = report.Status,
-                HasSubmittedComplaint =
-                    report.HasSubmittedComplaint,
+                report.HasSubmittedComplaint,
                 ComplaintSubmittedAt =
                     complaintSubmittedAt,
                 ComplaintReason =
                     complaintReason,
                 AdminReason =
                     adminReason,
-                report.AssignedStaffId,
-                report.AppliedSLAHours,
-                OldResolvedAt =
-                    oldResolvedAt,
-                OldDueAt =
-                    oldDueAt,
-                report.ReopenedAt,
-                report.SLAStartedAt,
-                NewDueAt =
-                    report.DueAt
+                report.ClosedAt
             });
 
         _notificationService.Add(
             userId: report.CitizenId,
             reportId: report.Id,
-            type: NotificationType.ReportReopened,
-            title: "Khiếu nại đã được chấp nhận",
+            type: NotificationType.ReportClosed,
+            title: "Khiếu nại không được chấp nhận",
             message:
-                "Báo cáo của bạn đã được mở lại "
-                + "và tiếp tục xử lý.",
-            createdAt: currentTime);
-
-        _notificationService.Add(
-            userId: assignedStaffId,
-            reportId: report.Id,
-            type: NotificationType.ReportReopened,
-            title: "Báo cáo cần xử lý lại",
-            message:
-                "Báo cáo đã được Admin mở lại "
-                + "sau khi xem xét khiếu nại.",
+                "Admin đã xem xét khiếu nại và đóng "
+                + $"báo cáo. Lý do: {adminReason}",
             createdAt: currentTime);
 
         await _dbContext.SaveChangesAsync(
@@ -195,8 +138,7 @@ public sealed class ReopenReportCommandHandler
         return new PostResolutionActionResult(
             ReportId: report.Id,
             Status: report.Status,
-            ComplaintSubmittedAt:
-                report.ComplaintSubmittedAt,
+            ComplaintSubmittedAt: null,
             ComplaintDeadline: null,
             ClosedAt: report.ClosedAt,
             ReopenedAt: report.ReopenedAt,

@@ -1,184 +1,190 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
 
-namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
-{
-    public sealed class ReportConfiguration
+namespace UrbanIssue.Infrastructure.Sqlserver.Configurations;
+
+public sealed class ReportConfiguration
     : IEntityTypeConfiguration<Report>
+{
+    public void Configure(
+        EntityTypeBuilder<Report> builder)
     {
-        public void Configure(EntityTypeBuilder<Report> builder)
+        builder.ToTable("Reports");
+
+        builder.HasKey(report => report.Id);
+
+        builder.Property(report => report.Description)
+            .HasColumnType("nvarchar(max)")
+            .IsRequired();
+
+        builder.Property(report => report.AddressText)
+            .HasMaxLength(500)
+            .IsRequired(false);
+
+        builder.Property(report => report.Latitude)
+            .HasPrecision(9, 6)
+            .IsRequired();
+
+        builder.Property(report => report.Longitude)
+            .HasPrecision(9, 6)
+            .IsRequired();
+
+        builder.Property(report => report.Priority)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        builder.Property(report => report.Status)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(ReportStatus.New)
+            .IsRequired();
+
+        builder.Property(report => report.AppliedSLAHours)
+            .IsRequired(false);
+
+        builder.Property(
+                report => report.RequiresManualAssignment)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(report => report.IsEscalated)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(report => report.HasSubmittedComplaint)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(report => report.RejectedReason)
+            .HasMaxLength(1000)
+            .IsRequired(false);
+
+        builder.Property(report => report.ReopenReason)
+            .HasMaxLength(1000)
+            .IsRequired(false);
+
+        builder.Property(report => report.ComplaintReason)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        builder.Property(report => report.CreatedAt)
+            .IsRequired();
+
+        builder.Property(report => report.UpdatedAt)
+            .IsRequired(false);
+
+        builder.HasIndex(report => new
         {
-            builder.ToTable("Reports");
+            report.Status,
+            report.CreatedAt
+        });
 
-            builder.HasKey(x => x.Id);
+        builder.HasIndex(report => new
+        {
+            report.CategoryId,
+            report.AreaId,
+            report.Status
+        });
 
-            builder.Property(x => x.Description)
-                .HasColumnType("nvarchar(max)")
-                .IsRequired();
+        builder.HasIndex(report => new
+        {
+            report.Status,
+            report.ComplaintSubmittedAt
+        });
 
-            builder.Property(x => x.AddressText)
-                .HasMaxLength(500)
-                .IsRequired(false);
+        builder.HasIndex(report => new
+        {
+            report.HasSubmittedComplaint,
+            report.Status
+        });
 
-            builder.Property(x => x.Latitude)
-                .HasPrecision(9, 6)
-                .IsRequired();
+        builder.HasIndex(report => new
+        {
+            report.DepartmentId,
+            report.Status,
+            report.DueAt
+        });
 
-            builder.Property(x => x.Longitude)
-                .HasPrecision(9, 6)
-                .IsRequired();
+        builder.HasIndex(report => new
+        {
+            report.AssignedStaffId,
+            report.Status
+        });
 
-            builder.Property(x => x.Priority)
-                .HasConversion<string>()
-                .HasMaxLength(20)
-                .IsRequired(false);
+        builder.HasIndex(report => new
+        {
+            report.RequiresManualAssignment,
+            report.CreatedAt
+        });
 
-            builder.Property(x => x.Status)
-                .HasConversion<string>()
-                .HasMaxLength(20)
-                .HasDefaultValue(ReportStatus.New)
-                .IsRequired();
+        builder.HasIndex(report => new
+        {
+            report.Status,
+            report.Latitude,
+            report.Longitude
+        });
 
-            builder.Property(x => x.AppliedSLAHours)
-                .IsRequired(false);
+        builder.HasIndex(report => new
+        {
+            report.CategoryId,
+            report.AreaId,
+            report.Status,
+            report.CreatedAt
+        });
 
-            builder.Property(x => x.RequiresManualAssignment)
-                .HasDefaultValue(false)
-                .IsRequired();
+        builder.HasIndex(report => report.CreatedAt);
+        builder.HasIndex(report => report.ResolvedAt);
+        builder.HasIndex(report => report.ClosedAt);
 
-            builder.Property(x => x.IsEscalated)
-                .HasDefaultValue(false)
-                .IsRequired();
+        builder.HasIndex(report => new
+        {
+            report.Status,
+            report.DueAt
+        });
 
-            builder.Property(x => x.RejectedReason)
-                .HasMaxLength(1000)
-                .IsRequired(false);
+        builder.HasIndex(report => report.SLAStartedAt);
 
-            builder.Property(x => x.ReopenReason)
-                .HasMaxLength(1000)
-                .IsRequired(false);
+        builder.HasOne(report => report.Citizen)
+            .WithMany(user => user.CreatedReports)
+            .HasForeignKey(report => report.CitizenId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.Property(x => x.CreatedAt)
-                .IsRequired();
+        builder.HasOne(report => report.Category)
+            .WithMany(category => category.Reports)
+            .HasForeignKey(report => report.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.Property(x => x.UpdatedAt)
-                .IsRequired(false);
+        builder.HasOne(report => report.Area)
+            .WithMany(area => area.Reports)
+            .HasForeignKey(report => report.AreaId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(x => new
-            {
-                x.Status,
-                x.CreatedAt
-            });
+        builder.HasOne(report => report.Department)
+            .WithMany(department => department.Reports)
+            .HasForeignKey(report => report.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(x => new
-            {
-                x.CategoryId,
-                x.AreaId,
-                x.Status
-            });
+        builder.HasOne(report => report.AssignedStaff)
+            .WithMany(user => user.AssignedReports)
+            .HasForeignKey(report => report.AssignedStaffId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(x => new
-            {
-                x.Status,
-                x.ComplaintSubmittedAt
-            });
+        builder.HasOne(report => report.SLAConfig)
+            .WithMany(config => config.Reports)
+            .HasForeignKey(report => report.SLAConfigId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(x => new
-            {
-                x.DepartmentId,
-                x.Status,
-                x.DueAt
-            });
+        builder.HasOne(report => report.RejectedByUser)
+            .WithMany(user => user.RejectedReports)
+            .HasForeignKey(report => report.RejectedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasIndex(x => new
-            {
-                x.AssignedStaffId,
-                x.Status
-            });
-
-            builder.HasIndex(x => new
-            {
-                x.RequiresManualAssignment,
-                x.CreatedAt
-            });
-
-            builder.HasIndex(x => new
-            {
-                x.Status,
-                x.Latitude,
-                x.Longitude
-            });
-
-            builder.HasIndex(x => new
-            {
-                x.CategoryId,
-                x.AreaId,
-                x.Status,
-                x.CreatedAt
-            });
-
-            builder.HasIndex(x => x.CreatedAt);
-
-            builder.HasIndex(x => x.ResolvedAt);
-
-            builder.HasIndex(x => x.ClosedAt);
-
-            builder.HasIndex(x => new
-            {
-                x.Status,
-                x.DueAt
-            });
-
-            builder.HasIndex(x => x.SLAStartedAt);
-
-
-            builder.HasOne(x => x.Citizen)
-                .WithMany(x => x.CreatedReports)
-                .HasForeignKey(x => x.CitizenId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Category)
-                .WithMany(x => x.Reports)
-                .HasForeignKey(x => x.CategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Area)
-                .WithMany(x => x.Reports)
-                .HasForeignKey(x => x.AreaId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Department)
-                .WithMany(x => x.Reports)
-                .HasForeignKey(x => x.DepartmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.AssignedStaff)
-                .WithMany(x => x.AssignedReports)
-                .HasForeignKey(x => x.AssignedStaffId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.SLAConfig)
-                .WithMany(x => x.Reports)
-                .HasForeignKey(x => x.SLAConfigId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.RejectedByUser)
-                .WithMany(x => x.RejectedReports)
-                .HasForeignKey(x => x.RejectedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.ReopenedByUser)
-                .WithMany(x => x.ReopenedReports)
-                .HasForeignKey(x => x.ReopenedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-            builder.Property(x => x.ComplaintReason)
-                    .HasMaxLength(2000);
-            
-        }
+        builder.HasOne(report => report.ReopenedByUser)
+            .WithMany(user => user.ReopenedReports)
+            .HasForeignKey(report => report.ReopenedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

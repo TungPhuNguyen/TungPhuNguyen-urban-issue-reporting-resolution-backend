@@ -42,10 +42,6 @@ public sealed class SubmitComplaintCommandHandler
     {
         var citizenId = _currentUserService.UserId;
 
-        /*
-         * Lọc theo cả ReportId và CitizenId để Citizen
-         * không thể khiếu nại báo cáo của người khác.
-         */
         var report = await _dbContext.Reports
             .SingleOrDefaultAsync(
                 item =>
@@ -62,7 +58,8 @@ public sealed class SubmitComplaintCommandHandler
         if (report.Status != ReportStatus.Resolved)
         {
             throw new ConflictException(
-                "Chỉ có thể khiếu nại báo cáo đang ở trạng thái Resolved.");
+                "Chỉ có thể khiếu nại báo cáo "
+                + "đang ở trạng thái Resolved.");
         }
 
         if (!report.ResolvedAt.HasValue)
@@ -71,10 +68,14 @@ public sealed class SubmitComplaintCommandHandler
                 "Báo cáo chưa có thời điểm hoàn tất xử lý.");
         }
 
-        if (report.ComplaintSubmittedAt.HasValue)
+        /*
+         * Một Report chỉ được khiếu nại một lần trong
+         * toàn bộ vòng đời, kể cả khi Admin đã Reopen.
+         */
+        if (report.HasSubmittedComplaint)
         {
             throw new ConflictException(
-                "Báo cáo đã có khiếu nại đang chờ Admin xem xét.");
+                "Báo cáo này đã từng được gửi khiếu nại.");
         }
 
         var currentTime = DateTime.UtcNow;
@@ -83,10 +84,6 @@ public sealed class SubmitComplaintCommandHandler
             report.ResolvedAt.Value.AddDays(
                 ComplaintPeriodInDays);
 
-        /*
-         * Tại đúng thời điểm deadline vẫn cho phép gửi.
-         * Chỉ từ chối khi đã vượt quá deadline.
-         */
         if (currentTime > complaintDeadline)
         {
             throw new ConflictException(
@@ -96,15 +93,11 @@ public sealed class SubmitComplaintCommandHandler
         var oldStatus = report.Status;
         var reason = request.Reason.Trim();
 
+        report.HasSubmittedComplaint = true;
         report.ComplaintSubmittedAt = currentTime;
         report.ComplaintReason = reason;
         report.UpdatedAt = currentTime;
 
-        /*
-         * Khiếu nại chưa làm thay đổi trạng thái.
-         * Report vẫn ở trạng thái Resolved cho đến khi
-         * Admin xem xét và thực hiện Reopen.
-         */
         _dbContext.StatusUpdates.Add(
             new StatusUpdate
             {
@@ -112,13 +105,11 @@ public sealed class SubmitComplaintCommandHandler
                 UpdatedByUserId = citizenId,
                 OldStatus = oldStatus,
                 NewStatus = report.Status,
-                Note = $"Citizen đã gửi khiếu nại: {reason}",
+                Note =
+                    $"Citizen đã gửi khiếu nại: {reason}",
                 CreatedAt = currentTime
             });
 
-        /*
-         * Ghi lại thao tác gửi khiếu nại trong Audit Log.
-         */
         _auditLogService.Add(
             userId: citizenId,
             action: AuditActions.ComplaintSubmitted,
@@ -128,16 +119,14 @@ public sealed class SubmitComplaintCommandHandler
             {
                 report.Status,
                 report.ResolvedAt,
+                report.HasSubmittedComplaint,
                 report.ComplaintSubmittedAt,
                 ComplaintReason = reason,
                 ComplaintDeadline = complaintDeadline,
                 report.AssignedStaffId
             });
 
-        /*
-         * Thông báo cho tất cả Admin đang hoạt động.
-         */
-        var recipientIds = await _dbContext.Users
+        var adminIds = await _dbContext.Users
             .AsNoTracking()
             .Where(user =>
                 user.IsActive
@@ -145,13 +134,9 @@ public sealed class SubmitComplaintCommandHandler
             .Select(user => user.Id)
             .ToListAsync(cancellationToken);
 
-        var distinctRecipientIds =
-            new HashSet<Guid>(recipientIds);
+        var recipientIds =
+            new HashSet<Guid>(adminIds);
 
-        /*
-         * Thông báo thêm cho Staff đang phụ trách,
-         * nhưng chỉ khi tài khoản Staff còn hoạt động.
-         */
         if (report.AssignedStaffId.HasValue)
         {
             var assignedStaffIsActive =
@@ -159,51 +144,43 @@ public sealed class SubmitComplaintCommandHandler
                     .AsNoTracking()
                     .AnyAsync(
                         user =>
-                            user.Id == report.AssignedStaffId.Value
+                            user.Id
+                                == report.AssignedStaffId.Value
                             && user.IsActive
                             && user.Role.Name == "Staff",
                         cancellationToken);
 
             if (assignedStaffIsActive)
             {
-                distinctRecipientIds.Add(
+                recipientIds.Add(
                     report.AssignedStaffId.Value);
             }
         }
 
         _notificationService.AddMany(
-            userIds: distinctRecipientIds,
+            userIds: recipientIds,
             reportId: report.Id,
             type: NotificationType.ComplaintSubmitted,
             title: "Có khiếu nại mới",
             message:
-                $"Citizen đã gửi khiếu nại đối với báo cáo "
-                + $"{report.Id}.",
+                "Citizen đã gửi khiếu nại đối với "
+                + $"báo cáo {report.Id}.",
             createdAt: currentTime);
 
-        /*
-         * Report, StatusUpdate, AuditLog và Notification
-         * được lưu chung trong một lần SaveChangesAsync.
-         */
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
         return new PostResolutionActionResult(
             ReportId: report.Id,
             Status: report.Status,
-
             ComplaintSubmittedAt:
                 report.ComplaintSubmittedAt,
-
             ComplaintDeadline:
                 complaintDeadline,
-
             ClosedAt:
                 report.ClosedAt,
-
             ReopenedAt:
                 report.ReopenedAt,
-
             DueAt:
                 report.DueAt);
     }

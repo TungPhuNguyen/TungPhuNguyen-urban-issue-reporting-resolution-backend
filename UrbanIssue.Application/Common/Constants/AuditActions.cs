@@ -32,6 +32,9 @@ public static class AuditActions
     public const string ComplaintSubmitted =
         "COMPLAINT_SUBMITTED";
 
+    public const string ComplaintDismissed =
+        "COMPLAINT_DISMISSED";
+
     public const string ReportClosed =
         "REPORT_CLOSED";
 
@@ -46,6 +49,9 @@ public static class AuditActions
 
     public const string SlaBreached =
         "SLA_BREACHED";
+
+    public const string SlaEscalated =
+        "SLA_ESCALATED";
 
     public const string CategoryCreated =
         "CATEGORY_CREATED";
@@ -87,7 +93,7 @@ public static class AuditActions
         "SLA_CONFIG_UPDATED";
 
     public const string StaffCreated =
-    "STAFF_CREATED";
+        "STAFF_CREATED";
 
     public const string StaffUpdated =
         "STAFF_UPDATED";
