@@ -23,6 +23,12 @@ public static class AuditActions
     public const string ReportResolved =
         "REPORT_RESOLVED";
 
+    public const string ReportProgressNoteAdded =
+        "REPORT_PROGRESS_NOTE_ADDED";
+
+    public const string ReportProgressImagesUploaded =
+        "REPORT_PROGRESS_IMAGES_UPLOADED";
+
     public const string ComplaintSubmitted =
         "COMPLAINT_SUBMITTED";
 
