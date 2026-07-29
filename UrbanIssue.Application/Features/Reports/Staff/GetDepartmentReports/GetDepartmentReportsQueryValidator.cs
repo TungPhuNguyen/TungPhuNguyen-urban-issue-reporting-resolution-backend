@@ -7,27 +7,29 @@ public sealed class GetDepartmentReportsQueryValidator
 {
     public GetDepartmentReportsQueryValidator()
     {
-        RuleFor(x => x.Search)
+        RuleFor(query => query.Search)
             .MaximumLength(200)
             .WithMessage("Từ khóa không được vượt quá 200 ký tự.")
-            .When(x => !string.IsNullOrWhiteSpace(x.Search));
+            .When(query =>
+                !string.IsNullOrWhiteSpace(query.Search));
 
-        RuleFor(x => x.Status)
+        RuleFor(query => query.Status)
             .IsInEnum()
             .WithMessage("Trạng thái báo cáo không hợp lệ.")
-            .When(x => x.Status.HasValue);
+            .When(query => query.Status.HasValue);
 
-        RuleFor(x => x.Priority)
+        RuleFor(query => query.Priority)
             .IsInEnum()
             .WithMessage("Mức độ ưu tiên không hợp lệ.")
-            .When(x => x.Priority.HasValue);
+            .When(query => query.Priority.HasValue);
 
-        RuleFor(x => x.PageNumber)
+        RuleFor(query => query.PageNumber)
             .GreaterThanOrEqualTo(1)
             .WithMessage("Số trang phải lớn hơn hoặc bằng 1.");
 
-        RuleFor(x => x.PageSize)
+        RuleFor(query => query.PageSize)
             .InclusiveBetween(1, 100)
-            .WithMessage("Số phần tử trên trang phải từ 1 đến 100.");
+            .WithMessage(
+                "Số phần tử trên trang phải từ 1 đến 100.");
     }
 }

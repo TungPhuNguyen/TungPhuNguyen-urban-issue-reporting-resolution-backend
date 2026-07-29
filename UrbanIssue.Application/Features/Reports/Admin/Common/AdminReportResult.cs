@@ -21,7 +21,11 @@ public sealed record AdminReportSummaryResult(
     int UpvoteCount,
     string? ThumbnailUrl,
     DateTime CreatedAt,
-    DateTime? DueAt);
+    DateTime? DueAt,
+    bool IsOverdue,
+    double? OverdueHours,
+    bool IsEscalated,
+    DateTime? EscalatedAt);
 
 public sealed record AdminReportDetailResult(
     Guid Id,

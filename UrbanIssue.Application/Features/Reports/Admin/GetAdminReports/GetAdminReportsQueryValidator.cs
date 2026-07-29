@@ -7,42 +7,49 @@ public sealed class GetAdminReportsQueryValidator
 {
     public GetAdminReportsQueryValidator()
     {
-        RuleFor(x => x.Search)
+        RuleFor(query => query.Search)
             .MaximumLength(200)
             .WithMessage("Từ khóa không được vượt quá 200 ký tự.")
-            .When(x => !string.IsNullOrWhiteSpace(x.Search));
+            .When(query =>
+                !string.IsNullOrWhiteSpace(query.Search));
 
-        RuleFor(x => x.Status)
+        RuleFor(query => query.Status)
             .IsInEnum()
             .WithMessage("Trạng thái báo cáo không hợp lệ.")
-            .When(x => x.Status.HasValue);
+            .When(query => query.Status.HasValue);
 
-        RuleFor(x => x.Priority)
+        RuleFor(query => query.Priority)
             .IsInEnum()
             .WithMessage("Mức độ ưu tiên không hợp lệ.")
-            .When(x => x.Priority.HasValue);
+            .When(query => query.Priority.HasValue);
 
-        RuleFor(x => x.CategoryId)
+        RuleFor(query => query.CategoryId)
             .GreaterThan(0)
             .WithMessage("ID loại sự cố phải lớn hơn 0.")
-            .When(x => x.CategoryId.HasValue);
+            .When(query => query.CategoryId.HasValue);
 
-        RuleFor(x => x.AreaId)
+        RuleFor(query => query.AreaId)
             .GreaterThan(0)
             .WithMessage("ID khu vực phải lớn hơn 0.")
-            .When(x => x.AreaId.HasValue);
+            .When(query => query.AreaId.HasValue);
 
-        RuleFor(x => x.DepartmentId)
+        RuleFor(query => query.DepartmentId)
             .GreaterThan(0)
             .WithMessage("ID phòng ban phải lớn hơn 0.")
-            .When(x => x.DepartmentId.HasValue);
+            .When(query => query.DepartmentId.HasValue);
 
-        RuleFor(x => x.PageNumber)
+        RuleFor(query => query.StaffId)
+            .NotEmpty()
+            .WithMessage("ID Staff không hợp lệ.")
+            .When(query => query.StaffId.HasValue);
+
+        RuleFor(query => query.PageNumber)
             .GreaterThanOrEqualTo(1)
             .WithMessage("Số trang phải lớn hơn hoặc bằng 1.");
 
-        RuleFor(x => x.PageSize)
+        RuleFor(query => query.PageSize)
             .InclusiveBetween(1, 100)
-            .WithMessage("Số phần tử trên trang phải từ 1 đến 100.");
+            .WithMessage(
+                "Số phần tử trên trang phải từ 1 đến 100.");
     }
 }

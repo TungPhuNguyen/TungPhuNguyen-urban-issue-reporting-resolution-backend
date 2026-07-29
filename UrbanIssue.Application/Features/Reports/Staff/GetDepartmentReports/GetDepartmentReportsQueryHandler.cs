@@ -29,14 +29,15 @@ public sealed class GetDepartmentReportsQueryHandler
         GetDepartmentReportsQuery request,
         CancellationToken cancellationToken)
     {
+        var currentTime = DateTime.UtcNow;
         var staffId = _currentUserService.UserId;
 
         var staff = await _dbContext.Users
             .AsNoTracking()
-            .Where(x => x.Id == staffId)
-            .Select(x => new
+            .Where(user => user.Id == staffId)
+            .Select(user => new
             {
-                x.DepartmentId
+                user.DepartmentId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -55,9 +56,12 @@ public sealed class GetDepartmentReportsQueryHandler
         var departmentId = staff.DepartmentId.Value;
 
         /*
-         * Staff nhìn thấy:
-         * - Report Assigned đang nằm trong hàng đợi phòng ban.
-         * - Report đã được chính Staff đó tiếp nhận.
+         * Staff chỉ nhìn thấy phạm vi hợp lệ của mình:
+         * - Report Assigned đang chờ trong Department.
+         * - Report đã được chính Staff hiện tại tiếp nhận.
+         *
+         * Vì vậy filter IsOverdue không làm lộ Report của
+         * Department khác hoặc Report do Staff khác phụ trách.
          */
         var query = _dbContext.Reports
             .AsNoTracking()
@@ -94,6 +98,40 @@ public sealed class GetDepartmentReportsQueryHandler
                 report.Priority == request.Priority.Value);
         }
 
+        if (request.IsEscalated.HasValue)
+        {
+            query = query.Where(report =>
+                report.IsEscalated
+                    == request.IsEscalated.Value);
+        }
+
+        if (request.IsOverdue.HasValue)
+        {
+            if (request.IsOverdue.Value)
+            {
+                query = query.Where(report =>
+                    (
+                        report.Status == ReportStatus.Accepted
+                        || report.Status == ReportStatus.InProgress
+                    )
+                    && report.DueAt.HasValue
+                    && report.DueAt.Value < currentTime);
+            }
+            else
+            {
+                query = query.Where(report =>
+                    !(
+                        (
+                            report.Status == ReportStatus.Accepted
+                            || report.Status
+                                == ReportStatus.InProgress
+                        )
+                        && report.DueAt.HasValue
+                        && report.DueAt.Value < currentTime
+                    ));
+            }
+        }
+
         var totalItems = await query.CountAsync(
             cancellationToken);
 
@@ -102,48 +140,99 @@ public sealed class GetDepartmentReportsQueryHandler
             : (int)Math.Ceiling(
                 totalItems / (double)request.PageSize);
 
-        var items = await query
+        var rows = await query
             .OrderBy(report =>
                 report.Status == ReportStatus.Assigned ? 0 : 1)
+            .ThenBy(report =>
+                (
+                    report.Status == ReportStatus.Accepted
+                    || report.Status == ReportStatus.InProgress
+                )
+                && report.DueAt.HasValue
+                && report.DueAt.Value < currentTime
+                    ? 0
+                    : 1)
             .ThenBy(report => report.DueAt)
             .ThenByDescending(report => report.CreatedAt)
             .Skip(
                 (request.PageNumber - 1)
                 * request.PageSize)
             .Take(request.PageSize)
-            .Select(report =>
-                new StaffReportSummaryResult(
-                    report.Id,
-
-                    report.CategoryId,
-                    report.Category.Name,
-
-                    report.AreaId,
-                    report.Area.Name,
-
-                    report.Description,
-                    report.AddressText,
-
-                    report.Priority,
-                    report.Status,
-
-                    report.AssignedStaffId,
-                    report.AssignedStaff == null
-                        ? null
-                        : report.AssignedStaff.FullName,
-
-                    report.RequiresManualAssignment,
-
-                    report.Upvotes.Count(),
-
-                    report.Images
-                        .OrderBy(image => image.Id)
-                        .Select(image => image.ImageUrl)
-                        .FirstOrDefault(),
-
-                    report.CreatedAt,
-                    report.DueAt))
+            .Select(report => new
+            {
+                report.Id,
+                report.CategoryId,
+                CategoryName = report.Category.Name,
+                report.AreaId,
+                AreaName = report.Area.Name,
+                report.Description,
+                report.AddressText,
+                report.Priority,
+                report.Status,
+                report.AssignedStaffId,
+                AssignedStaffName = report.AssignedStaff == null
+                    ? null
+                    : report.AssignedStaff.FullName,
+                report.RequiresManualAssignment,
+                UpvoteCount = report.Upvotes.Count(),
+                ThumbnailUrl = report.Images
+                    .OrderBy(image => image.Id)
+                    .Select(image => image.ImageUrl)
+                    .FirstOrDefault(),
+                report.CreatedAt,
+                report.DueAt,
+                report.IsEscalated,
+                report.EscalatedAt
+            })
             .ToListAsync(cancellationToken);
+
+        /*
+         * Tính thời lượng quá hạn sau khi đã lấy đúng một trang.
+         * Không dùng hàm riêng của SQL Server trong Application.
+         */
+        var items = rows
+            .Select(row =>
+            {
+                var isOverdue =
+                    (
+                        row.Status == ReportStatus.Accepted
+                        || row.Status == ReportStatus.InProgress
+                    )
+                    && row.DueAt.HasValue
+                    && row.DueAt.Value < currentTime;
+
+                var overdueHours = isOverdue
+                    ? Math.Round(
+                        (
+                            currentTime
+                            - row.DueAt!.Value
+                        ).TotalHours,
+                        2)
+                    : (double?)null;
+
+                return new StaffReportSummaryResult(
+                    row.Id,
+                    row.CategoryId,
+                    row.CategoryName,
+                    row.AreaId,
+                    row.AreaName,
+                    row.Description,
+                    row.AddressText,
+                    row.Priority,
+                    row.Status,
+                    row.AssignedStaffId,
+                    row.AssignedStaffName,
+                    row.RequiresManualAssignment,
+                    row.UpvoteCount,
+                    row.ThumbnailUrl,
+                    row.CreatedAt,
+                    row.DueAt,
+                    isOverdue,
+                    overdueHours,
+                    row.IsEscalated,
+                    row.EscalatedAt);
+            })
+            .ToList();
 
         return new PagedResult<StaffReportSummaryResult>(
             Items: items,

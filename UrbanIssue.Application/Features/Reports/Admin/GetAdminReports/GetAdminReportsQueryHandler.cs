@@ -24,6 +24,8 @@ public sealed class GetAdminReportsQueryHandler
         GetAdminReportsQuery request,
         CancellationToken cancellationToken)
     {
+        var currentTime = DateTime.UtcNow;
+
         var query = _dbContext.Reports
             .AsNoTracking()
             .AsQueryable();
@@ -74,6 +76,12 @@ public sealed class GetAdminReportsQueryHandler
                 report.DepartmentId == request.DepartmentId.Value);
         }
 
+        if (request.StaffId.HasValue)
+        {
+            query = query.Where(report =>
+                report.AssignedStaffId == request.StaffId.Value);
+        }
+
         if (request.RequiresManualAssignment.HasValue)
         {
             query = query.Where(report =>
@@ -83,15 +91,44 @@ public sealed class GetAdminReportsQueryHandler
 
         if (request.HasComplaint.HasValue)
         {
-            if (request.HasComplaint.Value)
+            query = request.HasComplaint.Value
+                ? query.Where(report =>
+                    report.ComplaintSubmittedAt.HasValue)
+                : query.Where(report =>
+                    !report.ComplaintSubmittedAt.HasValue);
+        }
+
+        if (request.IsEscalated.HasValue)
+        {
+            query = query.Where(report =>
+                report.IsEscalated
+                    == request.IsEscalated.Value);
+        }
+
+        if (request.IsOverdue.HasValue)
+        {
+            if (request.IsOverdue.Value)
             {
                 query = query.Where(report =>
-                    report.ComplaintSubmittedAt.HasValue);
+                    (
+                        report.Status == ReportStatus.Accepted
+                        || report.Status == ReportStatus.InProgress
+                    )
+                    && report.DueAt.HasValue
+                    && report.DueAt.Value < currentTime);
             }
             else
             {
                 query = query.Where(report =>
-                    !report.ComplaintSubmittedAt.HasValue);
+                    !(
+                        (
+                            report.Status == ReportStatus.Accepted
+                            || report.Status
+                                == ReportStatus.InProgress
+                        )
+                        && report.DueAt.HasValue
+                        && report.DueAt.Value < currentTime
+                    ));
             }
         }
 
@@ -103,58 +140,113 @@ public sealed class GetAdminReportsQueryHandler
             : (int)Math.Ceiling(
                 totalItems / (double)request.PageSize);
 
-        var items = await query
+        var rows = await query
             .OrderByDescending(report =>
                 report.RequiresManualAssignment)
             .ThenBy(report =>
                 report.Status == ReportStatus.New ? 0 : 1)
             .ThenByDescending(report =>
                 report.ComplaintSubmittedAt.HasValue)
-            .ThenByDescending(report =>
-                report.CreatedAt)
+            .ThenBy(report =>
+                (
+                    report.Status == ReportStatus.Accepted
+                    || report.Status == ReportStatus.InProgress
+                )
+                && report.DueAt.HasValue
+                && report.DueAt.Value < currentTime
+                    ? 0
+                    : 1)
+            .ThenBy(report => report.DueAt)
+            .ThenByDescending(report => report.CreatedAt)
             .Skip(
                 (request.PageNumber - 1)
                 * request.PageSize)
             .Take(request.PageSize)
-            .Select(report =>
-                new AdminReportSummaryResult(
-                    report.Id,
-
-                    report.Citizen.FullName,
-
-                    report.CategoryId,
-                    report.Category.Name,
-
-                    report.AreaId,
-                    report.Area.Name,
-
-                    report.DepartmentId,
-                    report.Department == null
-                        ? null
-                        : report.Department.Name,
-
-                    report.AssignedStaffId,
-                    report.AssignedStaff == null
-                        ? null
-                        : report.AssignedStaff.FullName,
-
-                    report.Description,
-                    report.Priority,
-                    report.Status,
-                    report.RequiresManualAssignment,
-
+            .Select(report => new
+            {
+                report.Id,
+                CitizenName = report.Citizen.FullName,
+                report.CategoryId,
+                CategoryName = report.Category.Name,
+                report.AreaId,
+                AreaName = report.Area.Name,
+                report.DepartmentId,
+                DepartmentName = report.Department == null
+                    ? null
+                    : report.Department.Name,
+                report.AssignedStaffId,
+                AssignedStaffName = report.AssignedStaff == null
+                    ? null
+                    : report.AssignedStaff.FullName,
+                report.Description,
+                report.Priority,
+                report.Status,
+                report.RequiresManualAssignment,
+                HasComplaint =
                     report.ComplaintSubmittedAt.HasValue,
-
-                    report.Upvotes.Count(),
-
-                    report.Images
-                        .OrderBy(image => image.Id)
-                        .Select(image => image.ImageUrl)
-                        .FirstOrDefault(),
-
-                    report.CreatedAt,
-                    report.DueAt))
+                UpvoteCount = report.Upvotes.Count(),
+                ThumbnailUrl = report.Images
+                    .OrderBy(image => image.Id)
+                    .Select(image => image.ImageUrl)
+                    .FirstOrDefault(),
+                report.CreatedAt,
+                report.DueAt,
+                report.IsEscalated,
+                report.EscalatedAt
+            })
             .ToListAsync(cancellationToken);
+
+        /*
+         * Tính thời lượng quá hạn sau khi đã lấy đúng một trang.
+         * Cách này giữ Application độc lập với provider SQL Server
+         * và tránh phụ thuộc EF.Functions.DateDiff*.
+         */
+        var items = rows
+            .Select(row =>
+            {
+                var isOverdue =
+                    (
+                        row.Status == ReportStatus.Accepted
+                        || row.Status == ReportStatus.InProgress
+                    )
+                    && row.DueAt.HasValue
+                    && row.DueAt.Value < currentTime;
+
+                var overdueHours = isOverdue
+                    ? Math.Round(
+                        (
+                            currentTime
+                            - row.DueAt!.Value
+                        ).TotalHours,
+                        2)
+                    : (double?)null;
+
+                return new AdminReportSummaryResult(
+                    row.Id,
+                    row.CitizenName,
+                    row.CategoryId,
+                    row.CategoryName,
+                    row.AreaId,
+                    row.AreaName,
+                    row.DepartmentId,
+                    row.DepartmentName,
+                    row.AssignedStaffId,
+                    row.AssignedStaffName,
+                    row.Description,
+                    row.Priority,
+                    row.Status,
+                    row.RequiresManualAssignment,
+                    row.HasComplaint,
+                    row.UpvoteCount,
+                    row.ThumbnailUrl,
+                    row.CreatedAt,
+                    row.DueAt,
+                    isOverdue,
+                    overdueHours,
+                    row.IsEscalated,
+                    row.EscalatedAt);
+            })
+            .ToList();
 
         return new PagedResult<AdminReportSummaryResult>(
             Items: items,

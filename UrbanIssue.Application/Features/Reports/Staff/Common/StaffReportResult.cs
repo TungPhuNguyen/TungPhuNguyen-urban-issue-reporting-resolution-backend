@@ -18,7 +18,11 @@ public sealed record StaffReportSummaryResult(
     int UpvoteCount,
     string? ThumbnailUrl,
     DateTime CreatedAt,
-    DateTime? DueAt);
+    DateTime? DueAt,
+    bool IsOverdue,
+    double? OverdueHours,
+    bool IsEscalated,
+    DateTime? EscalatedAt);
 
 public sealed record StaffReportDetailResult(
     Guid Id,
