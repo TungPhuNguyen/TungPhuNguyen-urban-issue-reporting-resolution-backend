@@ -21,11 +21,8 @@ using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
 var builder =
     WebApplication.CreateBuilder(args);
 
-var allowedOrigins =
-    builder.Configuration
-        .GetSection("Frontend:AllowedOrigins")
-        .Get<string[]>()
-    ?? [];
+const string AllowFrontendPolicy =
+    "AllowFrontend";
 
 builder.Services
     .AddControllers()
@@ -100,18 +97,20 @@ builder.Services.AddScoped<
     INotificationService,
     NotificationService>();
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(
-        "FrontendPolicy",
-        policy =>
-        {
-            policy
-                .WithOrigins(allowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
-});
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy(
+            AllowFrontendPolicy,
+            policy =>
+            {
+                policy
+                    .WithOrigins(
+                        "http://localhost:5173")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            });
+    });
 
 var app =
     builder.Build();
@@ -151,7 +150,7 @@ app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 
-app.UseCors("FrontendPolicy");
+app.UseCors(AllowFrontendPolicy);
 
 app.UseAuthentication();
 

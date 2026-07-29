@@ -1,6 +1,17 @@
-# Chuẩn hóa file văn bản thành LF
+# Chuẩn hóa các file văn bản về LF trong repository
 * text=auto eol=lf
 
-# Các file script dành riêng cho Windows
+# Các script Windows giữ CRLF
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# File nhị phân không chuyển đổi line ending
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
