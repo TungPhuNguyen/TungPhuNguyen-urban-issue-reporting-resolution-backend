@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
+
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
 namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 {
@@ -258,7 +260,10 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     RejectedReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     ReopenedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ReopenedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ReopenReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
+                    ReopenReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    HasSubmittedComplaint = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    ComplaintSubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ComplaintReason = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -321,8 +326,8 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Content = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IsComplaint = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    Content = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    IsComplaint = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -472,6 +477,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.InsertData(
+                table: "Roles",
+                columns: new[] { "Id", "CreatedAt", "Name", "UpdatedAt" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Citizen", null },
+                    { 2, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Staff", null },
+                    { 3, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Admin", null }
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_Areas_Code",
                 table: "Areas",
@@ -485,32 +500,20 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 column: "ParentAreaId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AuditLogs_CreatedAt",
+                name: "IX_AuditLogs_EntityType_EntityId_CreatedAt",
                 table: "AuditLogs",
-                column: "CreatedAt");
+                columns: new[] { "EntityType", "EntityId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_AuditLogs_EntityType_EntityId",
+                name: "IX_AuditLogs_UserId_CreatedAt",
                 table: "AuditLogs",
-                columns: new[] { "EntityType", "EntityId" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_AuditLogs_UserId",
-                table: "AuditLogs",
-                column: "UserId");
+                columns: new[] { "UserId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Categories_Name",
                 table: "Categories",
                 column: "Name",
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Comments_ReportId",
-                table: "Comments",
-                column: "ReportId",
-                unique: true,
-                filter: "[IsComplaint] = 1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Comments_ReportId_CreatedAt",
@@ -570,14 +573,34 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 columns: new[] { "CategoryId", "AreaId", "Status" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Reports_CategoryId_AreaId_Status_CreatedAt",
+                table: "Reports",
+                columns: new[] { "CategoryId", "AreaId", "Status", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Reports_CitizenId",
                 table: "Reports",
                 column: "CitizenId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Reports_ClosedAt",
+                table: "Reports",
+                column: "ClosedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_CreatedAt",
+                table: "Reports",
+                column: "CreatedAt");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Reports_DepartmentId_Status_DueAt",
                 table: "Reports",
                 columns: new[] { "DepartmentId", "Status", "DueAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_HasSubmittedComplaint_Status",
+                table: "Reports",
+                columns: new[] { "HasSubmittedComplaint", "Status" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Reports_RejectedByUserId",
@@ -595,14 +618,39 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 columns: new[] { "RequiresManualAssignment", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Reports_ResolvedAt",
+                table: "Reports",
+                column: "ResolvedAt");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Reports_SLAConfigId",
                 table: "Reports",
                 column: "SLAConfigId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Reports_SLAStartedAt",
+                table: "Reports",
+                column: "SLAStartedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_Status_ComplaintSubmittedAt",
+                table: "Reports",
+                columns: new[] { "Status", "ComplaintSubmittedAt" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Reports_Status_CreatedAt",
                 table: "Reports",
                 columns: new[] { "Status", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_Status_DueAt",
+                table: "Reports",
+                columns: new[] { "Status", "DueAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_Status_Latitude_Longitude",
+                table: "Reports",
+                columns: new[] { "Status", "Latitude", "Longitude" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Roles_Name",
@@ -620,11 +668,6 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 table: "RoutingRules",
                 columns: new[] { "CategoryId", "AreaId", "DepartmentId" },
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_RoutingRules_CategoryId_AreaId_IsActive",
-                table: "RoutingRules",
-                columns: new[] { "CategoryId", "AreaId", "IsActive" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_RoutingRules_DepartmentId",
@@ -675,9 +718,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_RoleId",
+                name: "IX_Users_RoleId_DepartmentId_IsActive_CreatedAt",
                 table: "Users",
-                column: "RoleId");
+                columns: new[] { "RoleId", "DepartmentId", "IsActive", "CreatedAt" });
         }
 
         /// <inheritdoc />

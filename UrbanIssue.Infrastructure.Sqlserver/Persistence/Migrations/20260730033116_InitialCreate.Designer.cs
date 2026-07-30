@@ -12,8 +12,8 @@ using UrbanIssue.Infrastructure.Sqlserver.Persistence;
 namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260724092743_AddAuditLogIndexes")]
-    partial class AddAuditLogIndexes
+    [Migration("20260730033116_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -353,6 +353,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Property<DateTime?>("EscalatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("HasSubmittedComplaint")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsEscalated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -426,19 +431,31 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.HasIndex("CitizenId");
 
+                    b.HasIndex("ClosedAt");
+
+                    b.HasIndex("CreatedAt");
+
                     b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("ReopenedByUserId");
 
+                    b.HasIndex("ResolvedAt");
+
                     b.HasIndex("SLAConfigId");
 
+                    b.HasIndex("SLAStartedAt");
+
                     b.HasIndex("AssignedStaffId", "Status");
+
+                    b.HasIndex("HasSubmittedComplaint", "Status");
 
                     b.HasIndex("RequiresManualAssignment", "CreatedAt");
 
                     b.HasIndex("Status", "ComplaintSubmittedAt");
 
                     b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("Status", "DueAt");
 
                     b.HasIndex("CategoryId", "AreaId", "Status");
 
@@ -738,7 +755,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId", "DepartmentId", "IsActive", "CreatedAt");
 
                     b.ToTable("Users", (string)null);
                 });
