@@ -75,7 +75,7 @@ namespace UrbanIssue.Application.Features.Auth.Login
             if (!user.IsActive)
             {
                 throw new UnauthorizedAccessException(
-                    "Tài khoản đã bị vô hiệu hóa.");
+                    "Tài khoản đã bị khóa.");
             }
 
             var isPasswordValid =
@@ -128,6 +128,7 @@ namespace UrbanIssue.Application.Features.Auth.Login
                     CreatedAt =
                         DateTime.UtcNow
                 };
+
 
             _dbContext.RefreshTokens.Add(
                 refreshToken);

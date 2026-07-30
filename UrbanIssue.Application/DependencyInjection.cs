@@ -17,13 +17,11 @@ namespace UrbanIssue.Application
                 typeof(DependencyInjection)
                     .Assembly;
 
-            services.AddMediatR(
-                configuration =>
-                {
-                    configuration
-                        .RegisterServicesFromAssembly(
-                            applicationAssembly);
-                });
+            services.AddMediatR(configuration =>
+            {
+                configuration.RegisterServicesFromAssembly(
+                    typeof(DependencyInjection).Assembly);
+            });
 
             services
                 .AddValidatorsFromAssembly(

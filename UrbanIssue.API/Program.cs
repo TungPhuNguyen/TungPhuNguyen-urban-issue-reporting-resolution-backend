@@ -1,10 +1,22 @@
 using System.Text.Json.Serialization;
+using UrbanIssue.API.BackgroundServices;
 using UrbanIssue.API.Common.Exceptions;
 using UrbanIssue.API.Extensions;
 using UrbanIssue.API.OpenApi;
+using UrbanIssue.API.Services;
 using UrbanIssue.Application;
+using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Storage;
 using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Infrastructure.Sqlserver;
+using UrbanIssue.Application.Common.Interfaces.Auditing;
+using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
+using UrbanIssue.Application.Common.Interfaces.Notifications;
+using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
+using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
+
+
+
 
 var builder =
     WebApplication.CreateBuilder(args);
@@ -65,6 +77,56 @@ builder.Services.AddOpenApi(
             .AddOperationTransformer<
                 BearerSecurityOperationTransformer>();
     });
+builder.Services
+    .AddOptions<DefaultSlaSettings>()
+    .Bind(
+        builder.Configuration.GetRequiredSection(
+            DefaultSlaSettings.SectionName))
+    .Validate(
+        settings =>
+            settings.LowHours > 0
+            && settings.MediumHours > 0
+            && settings.HighHours > 0,
+        "Thời gian SLA mặc định phải lớn hơn 0.")
+    .ValidateOnStart();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<
+    ICurrentUserService,
+    CurrentUserService>();
+
+builder.Services.AddScoped<
+    IFileStorageService,
+    LocalFileStorageService>();
+
+builder.Services.AddHostedService<
+    AutoCloseResolvedReportsBackgroundService>();
+
+builder.Services.AddHostedService<
+    SlaMonitoringBackgroundService>();
+
+builder.Services.AddScoped<
+    IAuditLogService,
+    AuditLogService>();
+
+builder.Services.AddScoped<
+    INotificationService,
+    NotificationService>();
+
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy(
+            AllowFrontendPolicy,
+            policy =>
+            {
+                policy
+                    .WithOrigins(
+                        "http://localhost:5173")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            });
+    });
 
 builder.Services
     .AddOptions<DefaultSlaSettings>()
@@ -81,6 +143,19 @@ builder.Services
 
 var app =
     builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    using var seedScope =
+        app.Services.CreateScope();
+
+    var seeder =
+        seedScope.ServiceProvider
+            .GetRequiredService<
+                HanoiDevelopmentDataSeeder>();
+
+    await seeder.SeedAsync();
+}
 
 app.UseExceptionHandler();
 
@@ -100,9 +175,11 @@ if (app.Environment.IsDevelopment())
 // Có thể bật lại khi HTTPS đã được cấu hình.
 // app.UseHttpsRedirection();
 
-// CORS phải chạy trước Authentication/Authorization
-app.UseCors(
-    AllowFrontendPolicy);
+app.UseStaticFiles();
+
+//app.UseHttpsRedirection();
+
+app.UseCors(AllowFrontendPolicy);
 
 app.UseAuthentication();
 

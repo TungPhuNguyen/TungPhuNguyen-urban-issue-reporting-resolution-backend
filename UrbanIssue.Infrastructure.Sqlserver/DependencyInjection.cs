@@ -7,10 +7,9 @@ using System.Text;
 using UrbanIssue.Infrastructure.Sqlserver.Persistence;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Authentication;
-using UrbanIssue.Application.Common.Interfaces.Authentication;
-using UrbanIssue.Infrastructure.Sqlserver.Services.Authentication;
 using UrbanIssue.Infrastructure.Sqlserver.Settings;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
+using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
 
 
 namespace UrbanIssue.Infrastructure.Sqlserver
@@ -77,6 +76,8 @@ namespace UrbanIssue.Infrastructure.Sqlserver
             services.AddScoped<
     IRefreshTokenService,
     RefreshTokenService>();
+            services.AddScoped<
+    HanoiDevelopmentDataSeeder>();
 
             return services;
         }

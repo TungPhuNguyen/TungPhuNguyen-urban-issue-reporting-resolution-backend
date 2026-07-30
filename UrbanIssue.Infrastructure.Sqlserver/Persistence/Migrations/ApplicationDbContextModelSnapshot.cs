@@ -99,11 +99,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("UserId", "CreatedAt");
 
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("EntityType", "EntityId");
+                    b.HasIndex("EntityType", "EntityId", "CreatedAt");
 
                     b.ToTable("AuditLogs", (string)null);
                 });
@@ -154,15 +152,14 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("IsComplaint")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<Guid>("ReportId")
                         .HasColumnType("uniqueidentifier");
@@ -171,10 +168,6 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ReportId")
-                        .IsUnique()
-                        .HasFilter("[IsComplaint] = 1");
 
                     b.HasIndex("UserId");
 
@@ -334,6 +327,13 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ComplaintReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("ComplaintSubmittedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -349,6 +349,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.Property<DateTime?>("EscalatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("HasSubmittedComplaint")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsEscalated")
                         .ValueGeneratedOnAdd()
@@ -423,21 +428,39 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.HasIndex("CitizenId");
 
+                    b.HasIndex("ClosedAt");
+
+                    b.HasIndex("CreatedAt");
+
                     b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("ReopenedByUserId");
 
+                    b.HasIndex("ResolvedAt");
+
                     b.HasIndex("SLAConfigId");
+
+                    b.HasIndex("SLAStartedAt");
 
                     b.HasIndex("AssignedStaffId", "Status");
 
+                    b.HasIndex("HasSubmittedComplaint", "Status");
+
                     b.HasIndex("RequiresManualAssignment", "CreatedAt");
 
+                    b.HasIndex("Status", "ComplaintSubmittedAt");
+
                     b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("Status", "DueAt");
 
                     b.HasIndex("CategoryId", "AreaId", "Status");
 
                     b.HasIndex("DepartmentId", "Status", "DueAt");
+
+                    b.HasIndex("Status", "Latitude", "Longitude");
+
+                    b.HasIndex("CategoryId", "AreaId", "Status", "CreatedAt");
 
                     b.ToTable("Reports", (string)null);
                 });
@@ -554,8 +577,6 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.HasIndex("CategoryId", "AreaId", "DepartmentId")
                         .IsUnique();
-
-                    b.HasIndex("CategoryId", "AreaId", "IsActive");
 
                     b.ToTable("RoutingRules", (string)null);
                 });
@@ -731,7 +752,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId", "DepartmentId", "IsActive", "CreatedAt");
 
                     b.ToTable("Users", (string)null);
                 });
