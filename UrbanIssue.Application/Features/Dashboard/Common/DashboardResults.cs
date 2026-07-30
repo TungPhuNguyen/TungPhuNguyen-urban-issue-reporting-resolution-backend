@@ -32,13 +32,15 @@ public sealed record ReportsByCategoryResult(
     int CategoryId,
     string CategoryName,
     int ReportCount,
-    decimal Percentage);
+    decimal Percentage,
+    double? AverageHandlingHours);
 
 public sealed record ReportsByAreaResult(
     int AreaId,
     string AreaName,
     int ReportCount,
-    decimal Percentage);
+    decimal Percentage,
+    double? AverageHandlingHours);
 
 public sealed record SlaPerformanceResult(
     DateOnly FromDate,

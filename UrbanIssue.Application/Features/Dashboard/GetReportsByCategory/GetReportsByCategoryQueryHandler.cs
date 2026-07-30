@@ -28,14 +28,17 @@ public sealed class GetReportsByCategoryQueryHandler
                 request.FromDate,
                 request.ToDate);
 
-        var groupedItems =
-            await _dbContext.Reports
+        var reportQuery =
+            _dbContext.Reports
                 .AsNoTracking()
                 .Where(report =>
                     report.CreatedAt
                         >= range.FromUtc
                     && report.CreatedAt
-                        < range.ToExclusiveUtc)
+                        < range.ToExclusiveUtc);
+
+        var groupedItems =
+            await reportQuery
                 .GroupBy(report => new
                 {
                     report.CategoryId,
@@ -54,6 +57,37 @@ public sealed class GetReportsByCategoryQueryHandler
                     item.CategoryName)
                 .ToListAsync(
                     cancellationToken);
+
+        var completedDurations =
+            await reportQuery
+                .Where(report =>
+                    report.SLAStartedAt.HasValue
+                    && report.ResolvedAt.HasValue
+                    && report.ResolvedAt.Value
+                        >= report.SLAStartedAt.Value)
+                .Select(report => new
+                {
+                    report.CategoryId,
+                    SLAStartedAt =
+                        report.SLAStartedAt!.Value,
+                    ResolvedAt =
+                        report.ResolvedAt!.Value
+                })
+                .ToListAsync(
+                    cancellationToken);
+
+        var averageHandlingHoursByCategory =
+            completedDurations
+                .GroupBy(item => item.CategoryId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => Math.Round(
+                        group.Average(item =>
+                            (
+                                item.ResolvedAt
+                                - item.SLAStartedAt
+                            ).TotalHours),
+                        2));
 
         var totalReports =
             groupedItems.Sum(item =>
@@ -78,7 +112,15 @@ public sealed class GetReportsByCategoryQueryHandler
                                 item.ReportCount
                                 * 100m
                                 / totalReports,
-                                2)))
+                                2),
+
+                    AverageHandlingHours:
+                        averageHandlingHoursByCategory
+                            .TryGetValue(
+                                item.CategoryId,
+                                out var averageHours)
+                            ? averageHours
+                            : null))
             .ToList();
     }
 }
