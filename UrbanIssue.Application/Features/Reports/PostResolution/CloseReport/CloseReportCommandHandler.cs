@@ -9,6 +9,7 @@ using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.PostResolution.Common;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
+using UrbanIssue.Domain.Constants;
 
 namespace UrbanIssue.Application.Features.Reports.PostResolution.CloseReport;
 
@@ -35,19 +36,49 @@ public sealed class CloseReportCommandHandler
     }
 
     public async Task<PostResolutionActionResult> Handle(
-        CloseReportCommand request,
-        CancellationToken cancellationToken)
+     CloseReportCommand request,
+     CancellationToken cancellationToken)
     {
-        var citizenId = _currentUserService.UserId;
+        var currentUserId =
+            _currentUserService.UserId;
+
+        var currentRole =
+            _currentUserService.Role;
+
+        var isAdmin = string.Equals(
+            currentRole,
+            RoleNames.Admin,
+            StringComparison.OrdinalIgnoreCase);
+
+        var isCitizen = string.Equals(
+            currentRole,
+            RoleNames.Citizen,
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin && !isCitizen)
+        {
+            throw new UnauthorizedAccessException(
+                "Bạn không có quyền đóng báo cáo.");
+        }
 
         var report = await _dbContext.Reports
             .SingleOrDefaultAsync(
-                item =>
-                    item.Id == request.ReportId
-                    && item.CitizenId == citizenId,
+                item => item.Id == request.ReportId,
                 cancellationToken);
 
         if (report is null)
+        {
+            throw new KeyNotFoundException(
+                $"Không tìm thấy báo cáo có ID {request.ReportId}.");
+        }
+
+        /*
+         * Citizen chỉ được đóng báo cáo do chính mình tạo.
+         * Admin được đóng mọi báo cáo hợp lệ.
+         */
+        if (
+            isCitizen &&
+            report.CitizenId != currentUserId)
         {
             throw new KeyNotFoundException(
                 $"Không tìm thấy báo cáo có ID {request.ReportId}.");
@@ -59,7 +90,16 @@ public sealed class CloseReportCommandHandler
                 "Chỉ có thể đóng báo cáo đang ở trạng thái Resolved.");
         }
 
-        if (report.ComplaintSubmittedAt.HasValue)
+        /*
+         * Theo business rule hiện tại, Citizen không được
+         * đóng khi đã gửi khiếu nại chờ Admin xử lý.
+         *
+         * Admin vẫn có thể đóng sau khi đã xem xét tình trạng
+         * báo cáo và quyết định kết thúc xử lý.
+         */
+        if (
+            isCitizen &&
+            report.ComplaintSubmittedAt.HasValue)
         {
             throw new ConflictException(
                 "Không thể đóng báo cáo đang có khiếu nại "
@@ -69,8 +109,14 @@ public sealed class CloseReportCommandHandler
         var currentTime = DateTime.UtcNow;
         var oldStatus = report.Status;
 
-        var note = string.IsNullOrWhiteSpace(request.Note)
-            ? "Citizen đã xác nhận kết quả xử lý và đóng báo cáo."
+        var actorLabel = isAdmin
+            ? "Admin"
+            : "Citizen";
+
+        var note = string.IsNullOrWhiteSpace(
+            request.Note)
+            ? $"{actorLabel} đã xác nhận kết quả xử lý "
+              + "và đóng báo cáo."
             : request.Note.Trim();
 
         report.Status = ReportStatus.Closed;
@@ -78,29 +124,28 @@ public sealed class CloseReportCommandHandler
         report.UpdatedAt = currentTime;
 
         /*
-         * Ghi thay đổi trạng thái vào timeline.
+         * Không thay đổi ResolutionNote hoặc proof images.
+         * Chỉ cập nhật trạng thái và thời gian đóng.
          */
         _dbContext.StatusUpdates.Add(
             new StatusUpdate
             {
                 ReportId = report.Id,
-                UpdatedByUserId = citizenId,
+                UpdatedByUserId = currentUserId,
                 OldStatus = oldStatus,
                 NewStatus = ReportStatus.Closed,
                 Note = note,
                 CreatedAt = currentTime
             });
 
-        /*
-         * Ghi Audit Log cho thao tác đóng Report.
-         */
         _auditLogService.Add(
-            userId: citizenId,
+            userId: currentUserId,
             action: AuditActions.ReportClosed,
             entityType: AuditEntityTypes.Report,
             entityId: report.Id.ToString(),
             detail: new
             {
+                ActorRole = currentRole,
                 OldStatus = oldStatus,
                 NewStatus = report.Status,
                 report.ResolvedAt,
@@ -108,23 +153,17 @@ public sealed class CloseReportCommandHandler
                 Note = note
             });
 
-        /*
-         * Gửi thông báo xác nhận cho Citizen.
-         */
         _notificationService.Add(
             userId: report.CitizenId,
             reportId: report.Id,
             type: NotificationType.ReportClosed,
             title: "Báo cáo đã được đóng",
-            message:
-                "Bạn đã xác nhận kết quả xử lý "
-                + "và đóng báo cáo thành công.",
+            message: isAdmin
+                ? "Admin đã xác nhận và đóng báo cáo."
+                : "Bạn đã xác nhận kết quả xử lý "
+                  + "và đóng báo cáo thành công.",
             createdAt: currentTime);
 
-        /*
-         * Report, StatusUpdate, AuditLog và Notification
-         * được lưu chung trong một lần SaveChangesAsync.
-         */
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
