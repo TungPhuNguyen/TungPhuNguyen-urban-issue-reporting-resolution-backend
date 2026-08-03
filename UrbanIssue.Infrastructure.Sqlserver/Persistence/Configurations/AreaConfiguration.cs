@@ -31,6 +31,10 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .HasDefaultValue(true)
                 .IsRequired();
 
+            builder.Property(x => x.BoundaryGeoJson)
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false);
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 

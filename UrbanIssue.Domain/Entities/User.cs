@@ -20,6 +20,16 @@ namespace UrbanIssue.Domain.Entities
 
         public bool IsActive { get; set; }
 
+        public DateTime? EmailVerifiedAt { get; set; }
+
+        public string? EmailVerificationTokenHash { get; set; }
+
+        public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+
+        public string? PasswordResetTokenHash { get; set; }
+
+        public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime? UpdatedAt { get; set; }

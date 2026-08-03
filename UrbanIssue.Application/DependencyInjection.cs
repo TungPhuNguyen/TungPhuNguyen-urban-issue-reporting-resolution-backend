@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UrbanIssue.Application.Common.Behaviors;
+using UrbanIssue.Application.Common.Geography;
+using UrbanIssue.Application.Common.Interfaces.Geography;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 
 namespace UrbanIssue.Application
@@ -35,6 +37,10 @@ namespace UrbanIssue.Application
             services.AddScoped<
                 IReportDuplicateChecker,
                 ReportDuplicateChecker>();
+
+            services.AddScoped<
+                IAreaBoundaryService,
+                AreaBoundaryService>();
 
             return services;
         }

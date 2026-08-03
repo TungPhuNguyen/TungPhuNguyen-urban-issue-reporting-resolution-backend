@@ -1,11 +1,13 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using Microsoft.Extensions.Options;
+using UrbanIssue.Application.Common.Email;
 using UrbanIssue.Application.Common.Exceptions;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Email;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
+using UrbanIssue.Application.Common.Security;
+using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Domain.Constants;
 using UrbanIssue.Domain.Entities;
 
@@ -25,11 +27,17 @@ namespace UrbanIssue.Application.Features.Auth.Register
         private readonly IRefreshTokenService
             _refreshTokenService;
 
+        private readonly IEmailService _emailService;
+
+        private readonly EmailSettings _emailSettings;
+
         public RegisterCommandHandler(
             IApplicationDbContext dbContext,
             IPasswordHasher passwordHasher,
             IJwtTokenService jwtTokenService,
-            IRefreshTokenService refreshTokenService)
+            IRefreshTokenService refreshTokenService,
+            IEmailService emailService,
+            IOptions<EmailSettings> emailSettings)
         {
             _dbContext = dbContext;
 
@@ -39,6 +47,10 @@ namespace UrbanIssue.Application.Features.Auth.Register
 
             _refreshTokenService =
                 refreshTokenService;
+
+            _emailService = emailService;
+
+            _emailSettings = emailSettings.Value;
         }
 
         public async Task<RegisterResult> Handle(
@@ -83,6 +95,9 @@ namespace UrbanIssue.Application.Features.Auth.Register
             var currentTime =
                 DateTime.UtcNow;
 
+            var verificationToken =
+                OneTimeToken.Generate();
+
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -111,6 +126,16 @@ namespace UrbanIssue.Application.Features.Auth.Register
 
                 IsActive =
                     true,
+
+                EmailVerifiedAt =
+                    null,
+
+                EmailVerificationTokenHash =
+                    OneTimeToken.Hash(verificationToken),
+
+                EmailVerificationTokenExpiresAt =
+                    currentTime.AddHours(
+                        _emailSettings.VerificationTokenLifetimeHours),
 
                 CreatedAt =
                     currentTime,
@@ -152,6 +177,19 @@ namespace UrbanIssue.Application.Features.Auth.Register
             await _dbContext.SaveChangesAsync(
                 cancellationToken);
 
+            var verificationUrl =
+                AuthActionUrlBuilder.Build(
+                    _emailSettings.FrontendBaseUrl,
+                    "/verify-email",
+                    user.Email,
+                    verificationToken);
+
+            await _emailService.SendEmailVerificationAsync(
+                user.Email,
+                user.FullName,
+                verificationUrl,
+                cancellationToken);
+
             var accessToken =
                 _jwtTokenService
                     .GenerateAccessToken(
@@ -176,6 +214,9 @@ namespace UrbanIssue.Application.Features.Auth.Register
 
                 Email:
                     user.Email,
+
+                IsEmailVerified:
+                    false,
 
                 Role:
                     citizenRole.Name,

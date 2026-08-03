@@ -8,6 +8,7 @@ namespace UrbanIssue.Application.Features.Auth.Login
     Guid UserId,
     string FullName,
     string Email,
+    bool IsEmailVerified,
     string Role,
     int? DepartmentId,
     string AccessToken,

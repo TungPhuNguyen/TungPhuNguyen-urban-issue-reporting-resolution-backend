@@ -1,14 +1,17 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using UrbanIssue.Application.Common.Constants;
 using UrbanIssue.Application.Common.Exceptions;
 using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Geography;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Application.Features.Reports.GetMyReportById;
+using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
 
@@ -23,6 +26,8 @@ public sealed class UpdateReportCommandHandler
     private readonly IAuditLogService _auditLogService;
     private readonly INotificationService _notificationService;
     private readonly ISender _sender;
+    private readonly IAreaBoundaryService _areaBoundaryService;
+    private readonly LocationValidationSettings _locationSettings;
 
     public UpdateReportCommandHandler(
         IApplicationDbContext dbContext,
@@ -30,7 +35,9 @@ public sealed class UpdateReportCommandHandler
         IReportDuplicateChecker duplicateChecker,
         IAuditLogService auditLogService,
         INotificationService notificationService,
-        ISender sender)
+        ISender sender,
+        IAreaBoundaryService areaBoundaryService,
+        IOptions<LocationValidationSettings> locationSettings)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
@@ -38,6 +45,8 @@ public sealed class UpdateReportCommandHandler
         _auditLogService = auditLogService;
         _notificationService = notificationService;
         _sender = sender;
+        _areaBoundaryService = areaBoundaryService;
+        _locationSettings = locationSettings.Value;
     }
 
     public async Task<CitizenReportDetailResult> Handle(
@@ -80,6 +89,25 @@ public sealed class UpdateReportCommandHandler
         if (area is null || !area.IsActive || !area.ParentAreaId.HasValue)
         {
             throw new KeyNotFoundException("Phường/xã không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        var boundaryCheck = await _areaBoundaryService.CheckAsync(
+            request.AreaId,
+            request.Latitude,
+            request.Longitude,
+            cancellationToken);
+
+        if (boundaryCheck.HasBoundary && !boundaryCheck.ContainsPoint)
+        {
+            throw new ConflictException(
+                "Tọa độ không nằm trong ranh giới phường/xã đã chọn.");
+        }
+
+        if (!boundaryCheck.HasBoundary
+            && _locationSettings.RequireWardBoundary)
+        {
+            throw new ConflictException(
+                "Phường/xã đã chọn chưa có dữ liệu polygon để xác minh tọa độ.");
         }
 
         if (category.IsOther && string.IsNullOrWhiteSpace(request.OtherCategoryText))

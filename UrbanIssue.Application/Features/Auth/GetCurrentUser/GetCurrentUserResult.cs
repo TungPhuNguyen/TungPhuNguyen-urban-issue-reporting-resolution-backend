@@ -8,6 +8,7 @@ namespace UrbanIssue.Application.Features.Auth.GetCurrentUser
     Guid UserId,
     string FullName,
     string Email,
+    bool IsEmailVerified,
     string? PhoneNumber,
     string Role,
     int? DepartmentId,

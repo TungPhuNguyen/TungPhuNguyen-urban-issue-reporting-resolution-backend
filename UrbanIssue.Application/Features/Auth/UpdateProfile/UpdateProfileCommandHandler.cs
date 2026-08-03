@@ -47,6 +47,7 @@ public sealed class UpdateProfileCommandHandler
             user.Id,
             user.FullName,
             user.Email,
+            user.EmailVerifiedAt.HasValue,
             user.PhoneNumber,
             user.Role.Name,
             user.DepartmentId,

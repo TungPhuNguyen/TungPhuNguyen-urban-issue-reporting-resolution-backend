@@ -37,6 +37,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     .HasMaxLength(50)
                     .HasColumnType("nvarchar(50)");
 
+                b.Property<string>("BoundaryGeoJson")
+                    .HasColumnType("nvarchar(max)");
+
                 b.Property<DateTime>("CreatedAt")
                     .HasColumnType("datetime2");
 
@@ -845,6 +848,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     .HasMaxLength(255)
                     .HasColumnType("nvarchar(255)");
 
+                b.Property<DateTime?>("EmailVerificationTokenExpiresAt")
+                    .HasColumnType("datetime2");
+
+                b.Property<string>("EmailVerificationTokenHash")
+                    .HasMaxLength(64)
+                    .HasColumnType("nvarchar(64)");
+
+                b.Property<DateTime?>("EmailVerifiedAt")
+                    .HasColumnType("datetime2");
+
                 b.Property<string>("FullName")
                     .IsRequired()
                     .HasMaxLength(150)
@@ -859,6 +872,13 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     .IsRequired()
                     .HasMaxLength(500)
                     .HasColumnType("nvarchar(500)");
+
+                b.Property<DateTime?>("PasswordResetTokenExpiresAt")
+                    .HasColumnType("datetime2");
+
+                b.Property<string>("PasswordResetTokenHash")
+                    .HasMaxLength(64)
+                    .HasColumnType("nvarchar(64)");
 
                 b.Property<string>("PhoneNumber")
                     .HasMaxLength(20)

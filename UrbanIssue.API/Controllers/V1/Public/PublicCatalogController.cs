@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.Application.Features.PublicCatalog.Common;
 using UrbanIssue.Application.Features.PublicCatalog.GetPublicAreas;
 using UrbanIssue.Application.Features.PublicCatalog.GetPublicCategories;
+using UrbanIssue.Application.Common.Models;
+using UrbanIssue.Application.Features.PublicCatalog.ResolveAreaByCoordinates;
 
 namespace UrbanIssue.API.Controllers.V1.Public;
 
@@ -58,6 +60,24 @@ public sealed class PublicCatalogController : ControllerBase
         var result = await _sender.Send(
             new GetPublicAreasQuery(
                 parentAreaId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Xác định phường/xã chứa một tọa độ theo polygon đã cấu hình.
+    /// </summary>
+    [HttpGet("areas/resolve")]
+    [ProducesResponseType(typeof(AreaLocationMatch), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AreaLocationMatch>> ResolveArea(
+        [FromQuery] decimal latitude,
+        [FromQuery] decimal longitude,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ResolveAreaByCoordinatesQuery(latitude, longitude),
             cancellationToken);
 
         return Ok(result);
