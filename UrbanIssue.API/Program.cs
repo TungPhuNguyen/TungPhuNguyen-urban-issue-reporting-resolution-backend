@@ -6,6 +6,7 @@ using UrbanIssue.API.OpenApi;
 using UrbanIssue.API.Services;
 using UrbanIssue.Application;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
+using UrbanIssue.Application.Common.Interfaces.Email;
 using UrbanIssue.Application.Common.Interfaces.Storage;
 using UrbanIssue.Application.Common.Settings;
 using UrbanIssue.Infrastructure.Sqlserver;
@@ -14,6 +15,7 @@ using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
+using UrbanIssue.API.Settings;
 using System.Threading.RateLimiting;
 
 
@@ -95,6 +97,10 @@ builder.Services
         "Thời gian SLA mặc định phải lớn hơn 0.")
     .ValidateOnStart();
 builder.Services.AddHttpContextAccessor();
+builder.Services
+    .AddOptions<LocationValidationSettings>()
+    .Bind(builder.Configuration.GetRequiredSection(
+        LocationValidationSettings.SectionName));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<
     INotificationRealtimePublisher,
@@ -119,9 +125,46 @@ builder.Services.AddScoped<
     ICurrentUserService,
     CurrentUserService>();
 
-builder.Services.AddScoped<
-    IFileStorageService,
-    LocalFileStorageService>();
+builder.Services
+    .AddOptions<CloudinarySettings>()
+    .Bind(builder.Configuration.GetSection(CloudinarySettings.SectionName));
+builder.Services.AddScoped<LocalFileStorageService>();
+builder.Services.AddHttpClient<CloudinaryFileStorageService>();
+builder.Services.AddScoped<IFileStorageService>(serviceProvider =>
+{
+    var provider = builder.Configuration["FileStorage:Provider"]
+        ?? "Local";
+
+    return provider.Equals("Cloudinary", StringComparison.OrdinalIgnoreCase)
+        ? serviceProvider.GetRequiredService<CloudinaryFileStorageService>()
+        : serviceProvider.GetRequiredService<LocalFileStorageService>();
+});
+
+builder.Services
+    .AddOptions<EmailSettings>()
+    .Bind(builder.Configuration.GetRequiredSection(EmailSettings.SectionName))
+    .Validate(
+        settings => Uri.TryCreate(
+            settings.FrontendBaseUrl,
+            UriKind.Absolute,
+            out _),
+        "Email FrontendBaseUrl phải là URL tuyệt đối.")
+    .Validate(
+        settings => settings.VerificationTokenLifetimeHours > 0
+            && settings.PasswordResetTokenLifetimeMinutes > 0,
+        "Thời hạn token email phải lớn hơn 0.")
+    .ValidateOnStart();
+builder.Services.AddScoped<DevelopmentEmailService>();
+builder.Services.AddHttpClient<ResendEmailService>();
+builder.Services.AddScoped<IEmailService>(serviceProvider =>
+{
+    var provider = builder.Configuration["Email:Provider"]
+        ?? "Development";
+
+    return provider.Equals("Resend", StringComparison.OrdinalIgnoreCase)
+        ? serviceProvider.GetRequiredService<ResendEmailService>()
+        : serviceProvider.GetRequiredService<DevelopmentEmailService>();
+});
 
 builder.Services.AddHostedService<
     AutoCloseResolvedReportsBackgroundService>();

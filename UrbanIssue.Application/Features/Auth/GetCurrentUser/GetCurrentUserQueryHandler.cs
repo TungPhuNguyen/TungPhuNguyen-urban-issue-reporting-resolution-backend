@@ -64,6 +64,9 @@ namespace UrbanIssue.Application.Features.Auth.GetCurrentUser
                 Email:
                     user.Email,
 
+                IsEmailVerified:
+                    user.EmailVerifiedAt.HasValue,
+
                 PhoneNumber:
                     user.PhoneNumber,
 

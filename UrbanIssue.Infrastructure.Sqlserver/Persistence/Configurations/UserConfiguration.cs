@@ -47,6 +47,23 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .HasDefaultValue(true)
                 .IsRequired();
 
+            builder.Property(x => x.EmailVerifiedAt)
+                .IsRequired(false);
+
+            builder.Property(x => x.EmailVerificationTokenHash)
+                .HasMaxLength(64)
+                .IsRequired(false);
+
+            builder.Property(x => x.EmailVerificationTokenExpiresAt)
+                .IsRequired(false);
+
+            builder.Property(x => x.PasswordResetTokenHash)
+                .HasMaxLength(64)
+                .IsRequired(false);
+
+            builder.Property(x => x.PasswordResetTokenExpiresAt)
+                .IsRequired(false);
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 

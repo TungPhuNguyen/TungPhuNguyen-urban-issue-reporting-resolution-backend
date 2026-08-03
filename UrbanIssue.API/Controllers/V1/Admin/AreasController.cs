@@ -9,6 +9,7 @@ using UrbanIssue.Application.Features.Areas.DeleteArea;
 using UrbanIssue.Application.Features.Areas.GetAreaById;
 using UrbanIssue.Application.Features.Areas.GetAreas;
 using UrbanIssue.Application.Features.Areas.UpdateArea;
+using UrbanIssue.Application.Features.Areas.UpdateAreaBoundary;
 
 namespace UrbanIssue.API.Controllers.V1.Admin;
 
@@ -200,5 +201,39 @@ public sealed class AreasController : ControllerBase
             cancellationToken);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Đọc ranh giới GeoJSON hiện tại của một phường/xã.
+    /// </summary>
+    [HttpGet("{id:int}/boundary")]
+    [ProducesResponseType(typeof(AreaBoundaryResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AreaBoundaryResult>> GetBoundary(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetAreaBoundaryQuery(id),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Tạo, thay thế hoặc xóa ranh giới GeoJSON của một phường/xã.
+    /// </summary>
+    [HttpPut("{id:int}/boundary")]
+    [RequestSizeLimit(5_500_000)]
+    [ProducesResponseType(typeof(AreaBoundaryResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AreaBoundaryResult>> UpdateBoundary(
+        int id,
+        [FromBody] UpdateAreaBoundaryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new UpdateAreaBoundaryCommand(id, request.GeoJson),
+            cancellationToken);
+
+        return Ok(result);
     }
 }

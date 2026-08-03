@@ -576,6 +576,7 @@ public sealed class HanoiDevelopmentDataSeeder
                 RoleId = roles[seed.RoleName],
                 DepartmentId = departmentId,
                 IsActive = true,
+                EmailVerifiedAt = currentTime,
                 CreatedAt = currentTime,
                 UpdatedAt = null
             };

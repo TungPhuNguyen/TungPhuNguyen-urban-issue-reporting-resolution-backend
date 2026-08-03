@@ -146,6 +146,9 @@ namespace UrbanIssue.Application.Features.Auth.Login
                 Email:
                     user.Email,
 
+                IsEmailVerified:
+                    user.EmailVerifiedAt.HasValue,
+
                 Role:
                     user.Role.Name,
 

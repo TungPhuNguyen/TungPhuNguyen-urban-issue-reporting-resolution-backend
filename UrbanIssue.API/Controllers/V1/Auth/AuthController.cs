@@ -12,6 +12,10 @@ using UrbanIssue.Application.Features.Auth.Logout;
 using UrbanIssue.Application.Features.Auth.RefreshAccessToken;
 using UrbanIssue.Application.Features.Auth.ChangePassword;
 using UrbanIssue.Application.Features.Auth.UpdateProfile;
+using UrbanIssue.Application.Features.Auth.ForgotPassword;
+using UrbanIssue.Application.Features.Auth.ResetPassword;
+using UrbanIssue.Application.Features.Auth.ResendVerificationEmail;
+using UrbanIssue.Application.Features.Auth.VerifyEmail;
 using UrbanIssue.API.Contracts.Auth;
 
 
@@ -213,6 +217,78 @@ public sealed class AuthController
             request.CurrentPassword,
             request.NewPassword,
             request.ConfirmNewPassword), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Gửi liên kết xác minh email mới mà không làm lộ email có tồn tại hay không.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("resend-verification-email")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ResendVerificationEmail(
+        [FromBody] EmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new ResendVerificationEmailCommand(request.Email),
+            cancellationToken);
+
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Xác minh địa chỉ email bằng token dùng một lần.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("verify-email")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> VerifyEmail(
+        [FromBody] EmailVerificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new VerifyEmailCommand(request.Email, request.Token),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Gửi liên kết đặt lại mật khẩu mà không làm lộ email có tồn tại hay không.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] EmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new ForgotPasswordCommand(request.Email),
+            cancellationToken);
+
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Đặt mật khẩu mới bằng token dùng một lần và thu hồi refresh token cũ.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new ResetPasswordCommand(
+                request.Email,
+                request.Token,
+                request.NewPassword,
+                request.ConfirmNewPassword),
+            cancellationToken);
+
         return NoContent();
     }
 }
