@@ -55,10 +55,11 @@ public sealed class AddReportCommentCommandHandler
 
         if (report.Status is
             ReportStatus.Closed or
-            ReportStatus.Rejected)
+            ReportStatus.Rejected or
+            ReportStatus.Cancelled)
         {
             throw new ConflictException(
-                "Không thể bình luận báo cáo đã đóng hoặc bị từ chối.");
+                "Không thể bình luận báo cáo đã đóng, bị từ chối hoặc đã hủy.");
         }
 
         var comment =

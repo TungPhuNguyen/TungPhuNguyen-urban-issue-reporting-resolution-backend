@@ -146,7 +146,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                     type: NotificationType.SLAWarning,
                     title: "Báo cáo sắp hết hạn SLA",
                     message:
-                        $"Báo cáo {report.Id} sắp hết hạn "
+                        $"Báo cáo {report.ReportCode} sắp hết hạn "
                         + $"SLA lúc "
                         + $"{dueAt:dd/MM/yyyy HH:mm} UTC.",
                     createdAt: currentTime);
@@ -199,7 +199,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                         title:
                             "Báo cáo đã quá hạn SLA",
                         message:
-                            $"Báo cáo {report.Id} "
+                            $"Báo cáo {report.ReportCode} "
                             + "đã quá thời hạn xử lý.",
                         createdAt:
                             currentTime);
@@ -226,6 +226,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                         UpdatedByUserId = null,
                         OldStatus = report.Status,
                         NewStatus = report.Status,
+                        EventType = TimelineEventType.SLABreached,
                         Note =
                             "Hệ thống phát hiện báo cáo "
                             + "đã quá hạn SLA.",
@@ -268,7 +269,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                     type: NotificationType.Escalated,
                     title: "Báo cáo SLA bị Escalated",
                     message:
-                        $"Báo cáo {report.Id} đã vượt "
+                        $"Báo cáo {report.ReportCode} đã vượt "
                         + "150% thời gian SLA và cần "
                         + "Admin can thiệp.",
                     createdAt: currentTime);
@@ -283,6 +284,7 @@ public sealed class ProcessSlaMonitoringCommandHandler
                         UpdatedByUserId = null,
                         OldStatus = report.Status,
                         NewStatus = report.Status,
+                        EventType = TimelineEventType.SLAEscalated,
                         Note =
                             "Hệ thống Escalate báo cáo "
                             + "sau khi vượt 150% thời gian SLA.",

@@ -8,6 +8,7 @@ namespace UrbanIssue.Application.Features.Categories.Common
     int Id,
     string Name,
     string? Description,
+    bool IsOther,
     bool IsActive,
     DateTime CreatedAt,
     DateTime? UpdatedAt);

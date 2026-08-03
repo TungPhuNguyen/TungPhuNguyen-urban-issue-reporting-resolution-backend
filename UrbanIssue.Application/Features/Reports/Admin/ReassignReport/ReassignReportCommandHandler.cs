@@ -301,6 +301,7 @@ public sealed class ReassignReportCommandHandler
 
         return new AdminReportActionResult(
             ReportId: report.Id,
+            ReportCode: report.ReportCode,
             Status: report.Status,
             DepartmentId: report.DepartmentId,
             DepartmentName: department.Name,

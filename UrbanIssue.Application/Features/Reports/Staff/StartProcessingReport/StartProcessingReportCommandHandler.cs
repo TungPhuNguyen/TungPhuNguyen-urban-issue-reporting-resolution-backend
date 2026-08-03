@@ -132,6 +132,7 @@ public sealed class StartProcessingReportCommandHandler
 
         return new StaffReportActionResult(
             Id: report.Id,
+            ReportCode: report.ReportCode,
             Status: report.Status,
             Priority: report.Priority,
             AssignedStaffId: report.AssignedStaffId,

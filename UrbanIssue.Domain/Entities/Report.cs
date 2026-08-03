@@ -5,6 +5,8 @@ namespace UrbanIssue.Domain.Entities;
 public class Report
 {
     public Guid Id { get; set; }
+    public long ReportNumber { get; set; }
+    public string ReportCode { get; set; } = string.Empty;
 
     // Foreign keys
     public Guid CitizenId { get; set; }
@@ -15,7 +17,9 @@ public class Report
     public int? SLAConfigId { get; set; }
 
     // Report information
+    public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string? OtherCategoryText { get; set; }
     public string? AddressText { get; set; }
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
@@ -44,6 +48,10 @@ public class Report
     public DateTime? AcceptedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+
+    // SQL Server rowversion used for optimistic concurrency.
+    public byte[] RowVersion { get; set; } = [];
 
     // Rejection
     public DateTime? RejectedAt { get; set; }
@@ -84,4 +92,7 @@ public class Report
 
     public ICollection<Notification> Notifications { get; set; }
         = new List<Notification>();
+
+    public ICollection<Complaint> Complaints { get; set; }
+        = new List<Complaint>();
 }

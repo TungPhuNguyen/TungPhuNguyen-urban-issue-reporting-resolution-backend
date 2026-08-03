@@ -11,6 +11,15 @@ public static class AuditActions
     public const string ReportReassigned =
         "REPORT_REASSIGNED";
 
+    public const string ReportReclassified =
+        "REPORT_RECLASSIFIED";
+
+    public const string ReportEdited =
+        "REPORT_EDITED";
+
+    public const string ReportCancelled =
+        "REPORT_CANCELLED";
+
     public const string ReportRejected =
         "REPORT_REJECTED";
 

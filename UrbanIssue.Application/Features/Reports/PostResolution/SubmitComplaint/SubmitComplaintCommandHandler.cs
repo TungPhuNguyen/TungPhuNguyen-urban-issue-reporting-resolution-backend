@@ -6,6 +6,8 @@ using UrbanIssue.Application.Common.Interfaces.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
+using UrbanIssue.Application.Common.Interfaces.Storage;
+using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.PostResolution.Common;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
@@ -13,27 +15,27 @@ using UrbanIssue.Domain.Enums;
 namespace UrbanIssue.Application.Features.Reports.PostResolution.SubmitComplaint;
 
 public sealed class SubmitComplaintCommandHandler
-    : IRequestHandler<
-        SubmitComplaintCommand,
-        PostResolutionActionResult>
+    : IRequestHandler<SubmitComplaintCommand, PostResolutionActionResult>
 {
     private const int ComplaintPeriodInDays = 7;
-
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditLogService _auditLogService;
     private readonly INotificationService _notificationService;
+    private readonly IFileStorageService _fileStorageService;
 
     public SubmitComplaintCommandHandler(
         IApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
         IAuditLogService auditLogService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IFileStorageService fileStorageService)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _auditLogService = auditLogService;
         _notificationService = notificationService;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<PostResolutionActionResult> Handle(
@@ -41,13 +43,9 @@ public sealed class SubmitComplaintCommandHandler
         CancellationToken cancellationToken)
     {
         var citizenId = _currentUserService.UserId;
-
-        var report = await _dbContext.Reports
-            .SingleOrDefaultAsync(
-                item =>
-                    item.Id == request.ReportId
-                    && item.CitizenId == citizenId,
-                cancellationToken);
+        var report = await _dbContext.Reports.SingleOrDefaultAsync(
+            item => item.Id == request.ReportId && item.CitizenId == citizenId,
+            cancellationToken);
 
         if (report is null)
         {
@@ -55,34 +53,24 @@ public sealed class SubmitComplaintCommandHandler
                 $"Không tìm thấy báo cáo có ID {request.ReportId}.");
         }
 
-        if (report.Status != ReportStatus.Resolved)
+        if (report.Status != ReportStatus.Resolved || !report.ResolvedAt.HasValue)
         {
             throw new ConflictException(
-                "Chỉ có thể khiếu nại báo cáo "
-                + "đang ở trạng thái Resolved.");
+                "Chỉ có thể khiếu nại báo cáo đã hoàn tất xử lý (Resolved).");
         }
 
-        if (!report.ResolvedAt.HasValue)
-        {
-            throw new ConflictException(
-                "Báo cáo chưa có thời điểm hoàn tất xử lý.");
-        }
-
-        /*
-         * Một Report chỉ được khiếu nại một lần trong
-         * toàn bộ vòng đời, kể cả khi Admin đã Reopen.
-         */
-        if (report.HasSubmittedComplaint)
+        if (report.HasSubmittedComplaint
+            || await _dbContext.Complaints.AnyAsync(
+                complaint => complaint.ReportId == report.Id,
+                cancellationToken))
         {
             throw new ConflictException(
                 "Báo cáo này đã từng được gửi khiếu nại.");
         }
 
         var currentTime = DateTime.UtcNow;
-
-        var complaintDeadline =
-            report.ResolvedAt.Value.AddDays(
-                ComplaintPeriodInDays);
+        var complaintDeadline = report.ResolvedAt.Value
+            .AddDays(ComplaintPeriodInDays);
 
         if (currentTime > complaintDeadline)
         {
@@ -90,98 +78,114 @@ public sealed class SubmitComplaintCommandHandler
                 "Đã hết thời hạn 7 ngày để gửi khiếu nại.");
         }
 
-        var oldStatus = report.Status;
         var reason = request.Reason.Trim();
+        var complaint = new Complaint
+        {
+            ReportId = report.Id,
+            CitizenId = citizenId,
+            Reason = reason,
+            Status = ComplaintStatus.Pending,
+            CreatedAt = currentTime
+        };
 
-        report.HasSubmittedComplaint = true;
-        report.ComplaintSubmittedAt = currentTime;
-        report.ComplaintReason = reason;
-        report.UpdatedAt = currentTime;
+        var storedFiles = new List<StoredFile>();
+        try
+        {
+            foreach (var image in request.Images)
+            {
+                var storedFile = await _fileStorageService.SaveAsync(
+                    $"uploads/complaints/{report.Id:N}",
+                    image,
+                    cancellationToken);
+                storedFiles.Add(storedFile);
+                complaint.Images.Add(new ComplaintImage
+                {
+                    ImageUrl = storedFile.PublicUrl,
+                    UploadedAt = currentTime
+                });
+            }
 
-        _dbContext.StatusUpdates.Add(
-            new StatusUpdate
+            report.HasSubmittedComplaint = true;
+            report.ComplaintSubmittedAt = currentTime;
+            report.ComplaintReason = reason;
+            report.UpdatedAt = currentTime;
+
+            _dbContext.Complaints.Add(complaint);
+            _dbContext.StatusUpdates.Add(new StatusUpdate
             {
                 ReportId = report.Id,
                 UpdatedByUserId = citizenId,
-                OldStatus = oldStatus,
+                OldStatus = report.Status,
                 NewStatus = report.Status,
-                Note =
-                    $"Citizen đã gửi khiếu nại: {reason}",
+                EventType = TimelineEventType.ComplaintSubmitted,
+                Note = $"Citizen đã gửi khiếu nại: {reason}",
                 CreatedAt = currentTime
             });
 
-        _auditLogService.Add(
-            userId: citizenId,
-            action: AuditActions.ComplaintSubmitted,
-            entityType: AuditEntityTypes.Report,
-            entityId: report.Id.ToString(),
-            detail: new
+            _auditLogService.Add(
+                citizenId,
+                AuditActions.ComplaintSubmitted,
+                AuditEntityTypes.Report,
+                report.Id.ToString(),
+                new
+                {
+                    report.ReportCode,
+                    ComplaintReason = reason,
+                    ComplaintDeadline = complaintDeadline,
+                    ImageCount = storedFiles.Count
+                });
+
+            var recipientIds = (await _dbContext.Users
+                .AsNoTracking()
+                .Where(user => user.IsActive && user.Role.Name == "Admin")
+                .Select(user => user.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+
+            if (report.AssignedStaffId.HasValue)
             {
-                report.Status,
-                report.ResolvedAt,
-                report.HasSubmittedComplaint,
-                report.ComplaintSubmittedAt,
-                ComplaintReason = reason,
-                ComplaintDeadline = complaintDeadline,
-                report.AssignedStaffId
-            });
-
-        var adminIds = await _dbContext.Users
-            .AsNoTracking()
-            .Where(user =>
-                user.IsActive
-                && user.Role.Name == "Admin")
-            .Select(user => user.Id)
-            .ToListAsync(cancellationToken);
-
-        var recipientIds =
-            new HashSet<Guid>(adminIds);
-
-        if (report.AssignedStaffId.HasValue)
-        {
-            var assignedStaffIsActive =
-                await _dbContext.Users
-                    .AsNoTracking()
-                    .AnyAsync(
-                        user =>
-                            user.Id
-                                == report.AssignedStaffId.Value
-                            && user.IsActive
-                            && user.Role.Name == "Staff",
-                        cancellationToken);
-
-            if (assignedStaffIsActive)
-            {
-                recipientIds.Add(
-                    report.AssignedStaffId.Value);
+                recipientIds.Add(report.AssignedStaffId.Value);
             }
+
+            _notificationService.AddMany(
+                recipientIds,
+                report.Id,
+                NotificationType.ComplaintSubmitted,
+                "Có khiếu nại mới",
+                $"Citizen đã gửi khiếu nại đối với phản ánh {report.ReportCode}.",
+                currentTime);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            foreach (var storedFile in storedFiles)
+            {
+                try
+                {
+                    await _fileStorageService.DeleteAsync(
+                        storedFile.StorageKey,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // Preserve the original exception.
+                }
+            }
+
+            throw;
         }
 
-        _notificationService.AddMany(
-            userIds: recipientIds,
-            reportId: report.Id,
-            type: NotificationType.ComplaintSubmitted,
-            title: "Có khiếu nại mới",
-            message:
-                "Citizen đã gửi khiếu nại đối với "
-                + $"báo cáo {report.Id}.",
-            createdAt: currentTime);
-
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
-
         return new PostResolutionActionResult(
-            ReportId: report.Id,
-            Status: report.Status,
-            ComplaintSubmittedAt:
-                report.ComplaintSubmittedAt,
-            ComplaintDeadline:
-                complaintDeadline,
-            ClosedAt:
-                report.ClosedAt,
-            ReopenedAt:
-                report.ReopenedAt,
-            DueAt:
-                report.DueAt);
+            report.Id,
+            report.Status,
+            complaint.CreatedAt,
+            complaintDeadline,
+            report.ClosedAt,
+            report.ReopenedAt,
+            report.DueAt,
+            report.ReportCode,
+            complaint.Id,
+            complaint.Status);
     }
 }

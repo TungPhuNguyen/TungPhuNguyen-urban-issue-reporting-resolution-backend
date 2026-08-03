@@ -48,7 +48,8 @@ public sealed class AutoCloseResolvedReportsCommandHandler
                 report.Status == ReportStatus.Resolved
                 && report.ResolvedAt.HasValue
                 && report.ResolvedAt.Value <= resolvedBefore
-                && !report.ComplaintSubmittedAt.HasValue)
+                && !report.Complaints.Any(complaint =>
+                    complaint.Status == ComplaintStatus.Pending))
             .OrderBy(report => report.ResolvedAt)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);

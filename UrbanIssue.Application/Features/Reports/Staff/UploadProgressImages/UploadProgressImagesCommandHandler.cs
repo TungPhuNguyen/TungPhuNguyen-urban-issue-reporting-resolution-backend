@@ -95,6 +95,7 @@ public sealed class UploadProgressImagesCommandHandler
                 UpdatedByUserId = staffId,
                 OldStatus = report.Status,
                 NewStatus = report.Status,
+                EventType = TimelineEventType.ProgressImagesUploaded,
                 Note = note,
                 CreatedAt = currentTime
             };
@@ -140,6 +141,7 @@ public sealed class UploadProgressImagesCommandHandler
 
             return new StaffProgressUpdateResult(
                 ReportId: report.Id,
+                ReportCode: report.ReportCode,
                 StatusUpdateId: statusUpdate.Id,
                 Status: report.Status,
                 Note: statusUpdate.Note,

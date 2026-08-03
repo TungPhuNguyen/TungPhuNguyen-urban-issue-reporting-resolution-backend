@@ -9,6 +9,8 @@ public sealed record CheckDuplicateReportsResult(
 
 public sealed record DuplicateReportResult(
     Guid Id,
+    string ReportCode,
+    string Title,
     string Description,
     decimal Latitude,
     decimal Longitude,

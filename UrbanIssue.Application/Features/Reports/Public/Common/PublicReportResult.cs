@@ -1,9 +1,12 @@
 using UrbanIssue.Domain.Enums;
+using UrbanIssue.Application.Features.Reports.Common;
 
 namespace UrbanIssue.Application.Features.Reports.Public.Common;
 
 public sealed record PublicReportMapItemResult(
     Guid Id,
+    string ReportCode,
+    string Title,
 
     int CategoryId,
     string CategoryName,
@@ -24,16 +27,20 @@ public sealed record PublicReportMapItemResult(
     ReportStatus Status,
 
     int UpvoteCount,
+    bool IsUpvotedByCurrentUser,
     int CommentCount,
 
     string? ThumbnailUrl,
 
     DateTime CreatedAt,
     DateTime? ResolvedAt,
-    DateTime? ClosedAt);
+    DateTime? ClosedAt,
+    ReportAllowedActionsResult AllowedActions);
 
 public sealed record PublicReportDetailResult(
     Guid Id,
+    string ReportCode,
+    string Title,
 
     int CategoryId,
     string CategoryName,
@@ -54,6 +61,7 @@ public sealed record PublicReportDetailResult(
     ReportStatus Status,
 
     int UpvoteCount,
+    bool IsUpvotedByCurrentUser,
     int CommentCount,
 
     IReadOnlyList<string> ImageUrls,
@@ -62,4 +70,5 @@ public sealed record PublicReportDetailResult(
     DateTime? UpdatedAt,
     DateTime? AcceptedAt,
     DateTime? ResolvedAt,
-    DateTime? ClosedAt);
+    DateTime? ClosedAt,
+    ReportAllowedActionsResult AllowedActions);

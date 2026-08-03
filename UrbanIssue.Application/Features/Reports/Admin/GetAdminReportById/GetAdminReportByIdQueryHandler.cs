@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Admin.Common;
+using UrbanIssue.Application.Features.Reports.Common;
+using UrbanIssue.Domain.Enums;
 
 namespace UrbanIssue.Application.Features.Reports.Admin.GetAdminReportById;
 
@@ -29,6 +31,9 @@ public sealed class GetAdminReportByIdQueryHandler
             .Select(report =>
                 new AdminReportDetailResult(
                     report.Id,
+                    report.ReportNumber,
+                    report.ReportCode,
+                    report.Title,
 
                     report.CitizenId,
                     report.Citizen.FullName,
@@ -51,6 +56,7 @@ public sealed class GetAdminReportByIdQueryHandler
                         : report.AssignedStaff.FullName,
 
                     report.Description,
+                    report.OtherCategoryText,
                     report.AddressText,
                     report.Latitude,
                     report.Longitude,
@@ -89,7 +95,66 @@ public sealed class GetAdminReportByIdQueryHandler
                     report.RejectedReason,
 
                     report.ReopenedAt,
-                    report.ReopenReason))
+                    report.ReopenReason,
+
+                    report.Complaints
+                        .OrderByDescending(complaint => complaint.CreatedAt)
+                        .Select(complaint => new ComplaintResult(
+                            complaint.Id,
+                            complaint.Status,
+                            complaint.Reason,
+                            complaint.AdminDecisionReason,
+                            complaint.ResolvedByAdminId,
+                            complaint.ResolvedByAdmin == null
+                                ? null
+                                : complaint.ResolvedByAdmin.FullName,
+                            complaint.CreatedAt,
+                            complaint.ResolvedAt,
+                            complaint.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    report.StatusUpdates
+                        .Where(update => update.NewStatus == ReportStatus.Resolved)
+                        .OrderByDescending(update => update.CreatedAt)
+                        .Select(update => new ReportResolutionResult(
+                            update.Note,
+                            update.UpdatedByUserId,
+                            update.UpdatedByUser == null
+                                ? null
+                                : update.UpdatedByUser.FullName,
+                            update.CreatedAt,
+                            update.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    new ReportAllowedActionsResult(
+                        false,
+                        false,
+                        report.Status == ReportStatus.New
+                            && !report.Category.IsOther,
+                        report.Status == ReportStatus.Assigned
+                            || report.Status == ReportStatus.Accepted
+                            || report.Status == ReportStatus.InProgress,
+                        report.Category.IsOther
+                            && report.Status == ReportStatus.New,
+                        false,
+                        false,
+                        false,
+                        false,
+                        report.Status == ReportStatus.Resolved
+                            && !report.Complaints.Any(complaint =>
+                                complaint.Status == ComplaintStatus.Pending),
+                        false,
+                        report.Complaints.Any(complaint =>
+                            complaint.Status == ComplaintStatus.Pending),
+                        false),
+
+                    report.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (result is null)

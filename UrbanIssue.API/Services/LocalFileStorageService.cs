@@ -43,6 +43,23 @@ public sealed class LocalFileStorageService
                 "Định dạng ảnh không được hỗ trợ.");
         }
 
+        await using var validatedContent = new MemoryStream();
+        await file.Content.CopyToAsync(
+            validatedContent,
+            cancellationToken);
+
+        if (!HasExpectedImageSignature(
+                validatedContent.GetBuffer().AsSpan(
+                    0,
+                    checked((int)validatedContent.Length)),
+                extension))
+        {
+            throw new InvalidOperationException(
+                "Nội dung file không khớp với định dạng ảnh JPG, PNG hoặc WEBP.");
+        }
+
+        validatedContent.Position = 0;
+
         var webRootPath =
             GetWebRootPath();
 
@@ -78,7 +95,7 @@ public sealed class LocalFileStorageService
                 bufferSize: 81920,
                 useAsync: true);
 
-        await file.Content.CopyToAsync(
+        await validatedContent.CopyToAsync(
             outputStream,
             cancellationToken);
 
@@ -143,5 +160,30 @@ public sealed class LocalFileStorageService
             webRootPath);
 
         return webRootPath;
+    }
+
+    private static bool HasExpectedImageSignature(
+        ReadOnlySpan<byte> content,
+        string extension)
+    {
+        if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            return content.Length >= 3
+                && content[0] == 0xFF
+                && content[1] == 0xD8
+                && content[2] == 0xFF;
+        }
+
+        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            ReadOnlySpan<byte> png =
+                [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+            return content.StartsWith(png);
+        }
+
+        return content.Length >= 12
+            && content[..4].SequenceEqual("RIFF"u8)
+            && content.Slice(8, 4).SequenceEqual("WEBP"u8);
     }
 }

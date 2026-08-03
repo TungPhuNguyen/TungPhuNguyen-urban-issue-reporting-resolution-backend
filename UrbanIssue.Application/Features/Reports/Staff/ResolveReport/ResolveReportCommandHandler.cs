@@ -189,8 +189,9 @@ public sealed class ResolveReportCommandHandler
                 cancellationToken);
 
             return new StaffReportActionResult(
-                Id: report.Id,
-                Status: report.Status,
+            Id: report.Id,
+            ReportCode: report.ReportCode,
+            Status: report.Status,
                 Priority: report.Priority,
                 AssignedStaffId: report.AssignedStaffId,
                 SlaConfigId: report.SLAConfigId,

@@ -47,6 +47,9 @@ public sealed class GetMyReportsQueryHandler
 
             reportsQuery =
                 reportsQuery.Where(report =>
+                    report.ReportCode.Contains(normalizedSearch)
+                    || report.Title.Contains(normalizedSearch)
+                    ||
                     report.Description.Contains(
                         normalizedSearch)
 
@@ -94,6 +97,8 @@ public sealed class GetMyReportsQueryHandler
                 .Select(report =>
                     new CitizenReportSummaryResult(
                         report.Id,
+                        report.ReportCode,
+                        report.Title,
 
                         report.CategoryId,
                         report.Category.Name,
@@ -107,6 +112,7 @@ public sealed class GetMyReportsQueryHandler
                             : report.Department.Name,
 
                         report.Description,
+                        report.OtherCategoryText,
                         report.AddressText,
 
                         report.Priority,

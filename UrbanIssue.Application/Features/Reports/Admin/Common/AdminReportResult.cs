@@ -1,9 +1,12 @@
 using UrbanIssue.Domain.Enums;
+using UrbanIssue.Application.Features.Reports.Common;
 
 namespace UrbanIssue.Application.Features.Reports.Admin.Common;
 
 public sealed record AdminReportSummaryResult(
     Guid Id,
+    string ReportCode,
+    string Title,
     string CitizenName,
     int CategoryId,
     string CategoryName,
@@ -14,6 +17,7 @@ public sealed record AdminReportSummaryResult(
     Guid? AssignedStaffId,
     string? AssignedStaffName,
     string Description,
+    string? OtherCategoryText,
     ReportPriority? Priority,
     ReportStatus Status,
     bool RequiresManualAssignment,
@@ -29,6 +33,9 @@ public sealed record AdminReportSummaryResult(
 
 public sealed record AdminReportDetailResult(
     Guid Id,
+    long ReportNumber,
+    string ReportCode,
+    string Title,
 
     Guid CitizenId,
     string CitizenName,
@@ -47,6 +54,7 @@ public sealed record AdminReportDetailResult(
     string? AssignedStaffName,
 
     string Description,
+    string? OtherCategoryText,
     string? AddressText,
     decimal Latitude,
     decimal Longitude,
@@ -81,10 +89,16 @@ public sealed record AdminReportDetailResult(
     string? RejectedReason,
 
     DateTime? ReopenedAt,
-    string? ReopenReason);
+    string? ReopenReason,
+
+    ComplaintResult? Complaint,
+    ReportResolutionResult? Resolution,
+    ReportAllowedActionsResult AllowedActions,
+    byte[] RowVersion);
 
 public sealed record AdminReportActionResult(
     Guid ReportId,
+    string ReportCode,
     ReportStatus Status,
     int? DepartmentId,
     string? DepartmentName,

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UrbanIssue.Application.Common.Behaviors;
+using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 
 namespace UrbanIssue.Application
 {
@@ -30,6 +31,10 @@ namespace UrbanIssue.Application
             services.AddTransient(
                 typeof(IPipelineBehavior<,>),
                 typeof(ValidationBehavior<,>));
+
+            services.AddScoped<
+                IReportDuplicateChecker,
+                ReportDuplicateChecker>();
 
             return services;
         }

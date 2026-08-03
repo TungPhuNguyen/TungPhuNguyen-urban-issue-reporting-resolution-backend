@@ -79,7 +79,8 @@ public sealed class GetCategoriesQueryHandler
          */
         var items =
             await categoriesQuery
-                .OrderBy(category => category.Name)
+                .OrderBy(category => category.IsOther)
+                .ThenBy(category => category.Name)
                 .ThenBy(category => category.Id)
                 .Skip(
                     (request.PageNumber - 1)
@@ -91,6 +92,7 @@ public sealed class GetCategoriesQueryHandler
                             category.Id,
                             category.Name,
                             category.Description,
+                            category.IsOther,
                             category.IsActive,
                             category.CreatedAt,
                             category.UpdatedAt))

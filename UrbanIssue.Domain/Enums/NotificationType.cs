@@ -16,6 +16,8 @@ namespace UrbanIssue.Domain.Enums
         ComplaintSubmitted = 8,
         SLAWarning = 9,
         SLABreached = 10,
-        Escalated = 11
+        Escalated = 11,
+        ReportReclassified = 12,
+        ReportCancelled = 13
     }
 }

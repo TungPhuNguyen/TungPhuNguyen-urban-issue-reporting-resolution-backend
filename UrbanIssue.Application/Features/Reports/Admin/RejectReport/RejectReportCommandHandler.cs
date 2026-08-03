@@ -68,11 +68,12 @@ public sealed class RejectReportCommandHandler
         if (report.Status is
             ReportStatus.Resolved
             or ReportStatus.Closed
-            or ReportStatus.Rejected)
+            or ReportStatus.Rejected
+            or ReportStatus.Cancelled)
         {
             throw new ConflictException(
                 "Không thể từ chối báo cáo đã Resolved, "
-                + "Closed hoặc Rejected.");
+                + "Closed, Rejected hoặc Cancelled.");
         }
 
         var currentTime = DateTime.UtcNow;
@@ -161,6 +162,7 @@ public sealed class RejectReportCommandHandler
 
         return new AdminReportActionResult(
             ReportId: report.Id,
+            ReportCode: report.ReportCode,
             Status: report.Status,
 
             DepartmentId:

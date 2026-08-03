@@ -4,6 +4,7 @@ using UrbanIssue.Application.Common.Exceptions;
 using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Features.Reports.Staff.Common;
+using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Domain.Enums;
 
 namespace UrbanIssue.Application.Features.Reports.Staff.GetStaffReportById;
@@ -57,6 +58,9 @@ public sealed class GetStaffReportByIdQueryHandler
             .Select(report =>
                 new StaffReportDetailResult(
                     report.Id,
+                    report.ReportNumber,
+                    report.ReportCode,
+                    report.Title,
 
                     report.CitizenId,
                     report.Citizen.FullName,
@@ -78,6 +82,7 @@ public sealed class GetStaffReportByIdQueryHandler
                         : report.AssignedStaff.FullName,
 
                     report.Description,
+                    report.OtherCategoryText,
                     report.AddressText,
                     report.Latitude,
                     report.Longitude,
@@ -106,7 +111,64 @@ public sealed class GetStaffReportByIdQueryHandler
                     report.CreatedAt,
                     report.UpdatedAt,
                     report.AcceptedAt,
-                    report.ResolvedAt))
+                    report.ResolvedAt,
+
+                    report.Complaints
+                        .OrderByDescending(complaint => complaint.CreatedAt)
+                        .Select(complaint => new ComplaintResult(
+                            complaint.Id,
+                            complaint.Status,
+                            complaint.Reason,
+                            complaint.AdminDecisionReason,
+                            complaint.ResolvedByAdminId,
+                            complaint.ResolvedByAdmin == null
+                                ? null
+                                : complaint.ResolvedByAdmin.FullName,
+                            complaint.CreatedAt,
+                            complaint.ResolvedAt,
+                            complaint.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    report.StatusUpdates
+                        .Where(update => update.NewStatus == ReportStatus.Resolved)
+                        .OrderByDescending(update => update.CreatedAt)
+                        .Select(update => new ReportResolutionResult(
+                            update.Note,
+                            update.UpdatedByUserId,
+                            update.UpdatedByUser == null
+                                ? null
+                                : update.UpdatedByUser.FullName,
+                            update.CreatedAt,
+                            update.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    new ReportAllowedActionsResult(
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        report.Status == ReportStatus.Assigned
+                            && (!report.AssignedStaffId.HasValue
+                                || report.AssignedStaffId == staffId),
+                        report.Status == ReportStatus.Accepted
+                            && report.AssignedStaffId == staffId,
+                        report.Status == ReportStatus.InProgress
+                            && report.AssignedStaffId == staffId,
+                        report.Status == ReportStatus.InProgress
+                            && report.AssignedStaffId == staffId,
+                        false,
+                        false,
+                        false,
+                        false),
+
+                    report.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (result is null)

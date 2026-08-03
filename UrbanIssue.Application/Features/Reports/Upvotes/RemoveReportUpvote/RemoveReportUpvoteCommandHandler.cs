@@ -31,15 +31,19 @@ public sealed class RemoveReportUpvoteCommandHandler
         var citizenId =
             _currentUserService.UserId;
 
-        var reportExists =
+        var report =
             await _dbContext.Reports
                 .AsNoTracking()
-                .AnyAsync(
+                .Where(
                     report =>
-                        report.Id == request.ReportId,
-                    cancellationToken);
+                        report.Id == request.ReportId)
+                .Select(report => new
+                {
+                    report.ReportCode
+                })
+                .SingleOrDefaultAsync(cancellationToken);
 
-        if (!reportExists)
+        if (report is null)
         {
             throw new KeyNotFoundException(
                 $"Không tìm thấy báo cáo có ID {request.ReportId}.");
@@ -76,6 +80,7 @@ public sealed class RemoveReportUpvoteCommandHandler
 
         return new ReportUpvoteResult(
             ReportId: request.ReportId,
+            ReportCode: report.ReportCode,
             IsUpvoted: false,
             UpvoteCount: upvoteCount);
     }

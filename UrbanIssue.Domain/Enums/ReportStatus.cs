@@ -12,6 +12,7 @@ namespace UrbanIssue.Domain.Enums
             InProgress = 4,
             Resolved = 5,
             Closed = 6,
-            Rejected = 7
+            Rejected = 7,
+            Cancelled = 8
         }
     }

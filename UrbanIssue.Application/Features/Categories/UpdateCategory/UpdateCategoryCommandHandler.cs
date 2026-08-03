@@ -85,6 +85,7 @@ public sealed class UpdateCategoryCommandHandler
             Id: category.Id,
             Name: category.Name,
             Description: category.Description,
+            IsOther: category.IsOther,
             IsActive: category.IsActive,
             CreatedAt: category.CreatedAt,
             UpdatedAt: category.UpdatedAt);

@@ -90,20 +90,18 @@ public sealed class CloseReportCommandHandler
                 "Chỉ có thể đóng báo cáo đang ở trạng thái Resolved.");
         }
 
-        /*
-         * Theo business rule hiện tại, Citizen không được
-         * đóng khi đã gửi khiếu nại chờ Admin xử lý.
-         *
-         * Admin vẫn có thể đóng sau khi đã xem xét tình trạng
-         * báo cáo và quyết định kết thúc xử lý.
-         */
-        if (
-            isCitizen &&
-            report.ComplaintSubmittedAt.HasValue)
+        var hasPendingComplaint = await _dbContext.Complaints
+            .AnyAsync(
+                complaint => complaint.ReportId == report.Id
+                    && complaint.Status == ComplaintStatus.Pending,
+                cancellationToken);
+
+        if (hasPendingComplaint)
         {
             throw new ConflictException(
                 "Không thể đóng báo cáo đang có khiếu nại "
-                + "chờ Admin xem xét.");
+                + "chờ Admin xem xét. Admin phải chấp nhận mở lại "
+                + "hoặc từ chối khiếu nại.");
         }
 
         var currentTime = DateTime.UtcNow;
@@ -184,6 +182,9 @@ public sealed class CloseReportCommandHandler
                 report.ReopenedAt,
 
             DueAt:
-                report.DueAt);
+                report.DueAt,
+
+            ReportCode:
+                report.ReportCode);
     }
 }

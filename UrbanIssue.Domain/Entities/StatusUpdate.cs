@@ -14,6 +14,9 @@ namespace UrbanIssue.Domain.Entities
 
         public ReportStatus NewStatus { get; set; }
 
+        public TimelineEventType EventType { get; set; }
+            = TimelineEventType.StatusChanged;
+
         public string? Note { get; set; }
 
         public DateTime CreatedAt { get; set; }

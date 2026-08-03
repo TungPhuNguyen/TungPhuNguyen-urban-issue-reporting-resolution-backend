@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using UrbanIssue.API.Contracts.Reports.Admin;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Admin.AssignReport;
+using UrbanIssue.Application.Features.Reports.Admin.ClassifyReport;
 using UrbanIssue.Application.Features.Reports.Admin.Common;
 using UrbanIssue.Application.Features.Reports.Admin.GetAdminReportById;
 using UrbanIssue.Application.Features.Reports.Admin.GetAdminReports;
@@ -113,6 +114,21 @@ public sealed class ReportsController : ControllerBase
                 DepartmentId: request.DepartmentId,
                 StaffId: request.StaffId,
                 Note: request.Note),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/classify")]
+    [ProducesResponseType(typeof(AdminReportActionResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdminReportActionResult>> Classify(
+        Guid id,
+        [FromBody] ClassifyReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ClassifyReportCommand(id, request.CategoryId, request.Note),
             cancellationToken);
 
         return Ok(result);

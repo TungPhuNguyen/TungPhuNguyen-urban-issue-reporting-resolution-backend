@@ -5,6 +5,7 @@ using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Public.Common;
 using UrbanIssue.Application.Features.Reports.Public.GetPublicReportById;
 using UrbanIssue.Application.Features.Reports.Public.GetPublicReports;
+using UrbanIssue.Application.Features.Reports.Public.GetPublicReportByCode;
 
 namespace UrbanIssue.API.Controllers.V1.Public;
 
@@ -66,6 +67,19 @@ public sealed class ReportsController : ControllerBase
             new GetPublicReportByIdQuery(id),
             cancellationToken);
 
+        return Ok(result);
+    }
+
+    [HttpGet("by-code/{reportCode}")]
+    [ProducesResponseType(typeof(PublicReportDetailResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PublicReportDetailResult>> GetByCode(
+        string reportCode,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetPublicReportByCodeQuery(reportCode),
+            cancellationToken);
         return Ok(result);
     }
 }

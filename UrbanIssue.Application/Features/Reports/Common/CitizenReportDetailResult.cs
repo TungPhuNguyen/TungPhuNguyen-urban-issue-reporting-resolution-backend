@@ -4,6 +4,9 @@ namespace UrbanIssue.Application.Features.Reports.Common;
 
 public sealed record CitizenReportDetailResult(
     Guid Id,
+    long ReportNumber,
+    string ReportCode,
+    string Title,
 
     int CategoryId,
     string CategoryName,
@@ -15,6 +18,7 @@ public sealed record CitizenReportDetailResult(
     string? DepartmentName,
 
     string Description,
+    string? OtherCategoryText,
     string? AddressText,
 
     decimal Latitude,
@@ -47,4 +51,10 @@ public sealed record CitizenReportDetailResult(
 
     DateTime? ReopenedAt,
 
-    string? ReopenReason);
+    string? ReopenReason,
+
+    bool IsUpvotedByCurrentUser,
+    ComplaintResult? Complaint,
+    ReportResolutionResult? Resolution,
+    ReportAllowedActionsResult AllowedActions,
+    byte[] RowVersion);

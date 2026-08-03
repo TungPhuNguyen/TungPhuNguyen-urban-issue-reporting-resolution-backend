@@ -6,9 +6,14 @@ using UrbanIssue.Domain.Enums;
 namespace UrbanIssue.Application.Features.Reports.Public.GetPublicReports;
 
 public sealed record GetPublicReportsQuery(
+    string? Search = null,
     int? CategoryId = null,
     int? AreaId = null,
     ReportStatus? Status = null,
+    ReportPriority? Priority = null,
+    ReportSortBy SortBy = ReportSortBy.Newest,
+    decimal? CurrentLatitude = null,
+    decimal? CurrentLongitude = null,
 
     DateTime? CreatedFrom = null,
     DateTime? CreatedTo = null,

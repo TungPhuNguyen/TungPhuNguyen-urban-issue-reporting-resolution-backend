@@ -58,10 +58,13 @@ public sealed class DismissComplaintCommandHandler
                 + "đang ở trạng thái Resolved.");
         }
 
-        if (!report.HasSubmittedComplaint
-            || !report.ComplaintSubmittedAt.HasValue
-            || string.IsNullOrWhiteSpace(
-                report.ComplaintReason))
+        var complaint = await _dbContext.Complaints
+            .SingleOrDefaultAsync(
+                item => item.ReportId == report.Id
+                    && item.Status == ComplaintStatus.Pending,
+                cancellationToken);
+
+        if (complaint is null)
         {
             throw new ConflictException(
                 "Báo cáo không có khiếu nại "
@@ -71,22 +74,17 @@ public sealed class DismissComplaintCommandHandler
         var currentTime = DateTime.UtcNow;
         var oldStatus = report.Status;
         var adminReason = request.Reason.Trim();
-        var complaintSubmittedAt =
-            report.ComplaintSubmittedAt;
-        var complaintReason =
-            report.ComplaintReason.Trim();
+        var complaintSubmittedAt = complaint.CreatedAt;
+        var complaintReason = complaint.Reason;
 
         report.Status = ReportStatus.Closed;
         report.ClosedAt = currentTime;
         report.UpdatedAt = currentTime;
 
-        /*
-         * Xóa trạng thái khiếu nại đang chờ.
-         * HasSubmittedComplaint vẫn giữ true để bảo đảm
-         * Report không thể được khiếu nại lần thứ hai.
-         */
-        report.ComplaintSubmittedAt = null;
-        report.ComplaintReason = null;
+        complaint.Status = ComplaintStatus.Rejected;
+        complaint.AdminDecisionReason = adminReason;
+        complaint.ResolvedByAdminId = adminId;
+        complaint.ResolvedAt = currentTime;
 
         _dbContext.StatusUpdates.Add(
             new StatusUpdate
@@ -95,6 +93,7 @@ public sealed class DismissComplaintCommandHandler
                 UpdatedByUserId = adminId,
                 OldStatus = oldStatus,
                 NewStatus = ReportStatus.Closed,
+                EventType = TimelineEventType.ComplaintRejected,
                 Note =
                     "Admin không chấp nhận khiếu nại và "
                     + $"đóng báo cáo. Khiếu nại: "
@@ -142,6 +141,9 @@ public sealed class DismissComplaintCommandHandler
             ComplaintDeadline: null,
             ClosedAt: report.ClosedAt,
             ReopenedAt: report.ReopenedAt,
-            DueAt: report.DueAt);
+            DueAt: report.DueAt,
+            ReportCode: report.ReportCode,
+            ComplaintId: complaint.Id,
+            ComplaintStatus: complaint.Status);
     }
 }

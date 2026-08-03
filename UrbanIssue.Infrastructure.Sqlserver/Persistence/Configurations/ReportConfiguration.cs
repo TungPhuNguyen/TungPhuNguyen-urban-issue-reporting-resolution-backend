@@ -15,9 +15,36 @@ public sealed class ReportConfiguration
 
         builder.HasKey(report => report.Id);
 
+        builder.Property(report => report.ReportNumber)
+            .HasDefaultValueSql("NEXT VALUE FOR [ReportNumbers]")
+            .ValueGeneratedOnAdd()
+            .IsRequired();
+
+        builder.HasIndex(report => report.ReportNumber)
+            .IsUnique();
+
+        builder.Property(report => report.ReportCode)
+            .HasMaxLength(30)
+            .HasComputedColumnSql(
+                "('UI-' + CONVERT([varchar](20),[ReportNumber]))",
+                stored: true)
+            .IsRequired(false);
+
+        builder.HasIndex(report => report.ReportCode)
+            .IsUnique()
+            .HasFilter(null);
+
+        builder.Property(report => report.Title)
+            .HasMaxLength(150)
+            .IsRequired();
+
         builder.Property(report => report.Description)
             .HasColumnType("nvarchar(max)")
             .IsRequired();
+
+        builder.Property(report => report.OtherCategoryText)
+            .HasMaxLength(250)
+            .IsRequired(false);
 
         builder.Property(report => report.AddressText)
             .HasMaxLength(500)
@@ -72,6 +99,9 @@ public sealed class ReportConfiguration
 
         builder.Property(report => report.CreatedAt)
             .IsRequired();
+
+        builder.Property(report => report.RowVersion)
+            .IsRowVersion();
 
         builder.Property(report => report.UpdatedAt)
             .IsRequired(false);

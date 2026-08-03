@@ -71,6 +71,12 @@ public sealed class GetMyNotificationsQueryHandler
                     new NotificationResult(
                         notification.Id,
                         notification.ReportId,
+                        notification.Report == null
+                            ? null
+                            : notification.Report.ReportCode,
+                        notification.Report == null
+                            ? null
+                            : $"/reports/{notification.Report.ReportCode}",
                         notification.Type,
                         notification.Title,
                         notification.Message,

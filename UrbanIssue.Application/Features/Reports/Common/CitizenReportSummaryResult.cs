@@ -4,6 +4,8 @@ namespace UrbanIssue.Application.Features.Reports.Common;
 
 public sealed record CitizenReportSummaryResult(
     Guid Id,
+    string ReportCode,
+    string Title,
     int CategoryId,
     string CategoryName,
     int AreaId,
@@ -11,6 +13,7 @@ public sealed record CitizenReportSummaryResult(
     int? DepartmentId,
     string? DepartmentName,
     string Description,
+    string? OtherCategoryText,
     string? AddressText,
     ReportPriority? Priority,
     ReportStatus Status,

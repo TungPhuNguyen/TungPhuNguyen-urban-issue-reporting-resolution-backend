@@ -72,6 +72,7 @@ public sealed class AddProgressNoteCommandHandler
             UpdatedByUserId = staffId,
             OldStatus = report.Status,
             NewStatus = report.Status,
+            EventType = TimelineEventType.ProgressNoteAdded,
             Note = note,
             CreatedAt = currentTime
         };
@@ -107,6 +108,7 @@ public sealed class AddProgressNoteCommandHandler
 
         return new StaffProgressUpdateResult(
             ReportId: report.Id,
+            ReportCode: report.ReportCode,
             StatusUpdateId: statusUpdate.Id,
             Status: report.Status,
             Note: statusUpdate.Note,

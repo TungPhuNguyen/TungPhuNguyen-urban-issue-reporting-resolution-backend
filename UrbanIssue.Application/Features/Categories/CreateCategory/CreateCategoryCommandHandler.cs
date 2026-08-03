@@ -109,6 +109,7 @@ namespace UrbanIssue.Application.Features.Categories.CreateCategory
                 Id: category.Id,
                 Name: category.Name,
                 Description: category.Description,
+                IsOther: category.IsOther,
                 IsActive: category.IsActive,
                 CreatedAt: category.CreatedAt,
                 UpdatedAt: category.UpdatedAt);
