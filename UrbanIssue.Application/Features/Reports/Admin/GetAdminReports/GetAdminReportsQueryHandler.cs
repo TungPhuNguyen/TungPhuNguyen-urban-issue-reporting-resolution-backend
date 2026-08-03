@@ -35,7 +35,9 @@ public sealed class GetAdminReportsQueryHandler
             var search = request.Search.Trim();
 
             query = query.Where(report =>
-                report.Description.Contains(search)
+                report.ReportCode.Contains(search)
+                || report.Title.Contains(search)
+                || report.Description.Contains(search)
                 || (
                     report.AddressText != null
                     && report.AddressText.Contains(search)
@@ -93,9 +95,11 @@ public sealed class GetAdminReportsQueryHandler
         {
             query = request.HasComplaint.Value
                 ? query.Where(report =>
-                    report.ComplaintSubmittedAt.HasValue)
+                    report.Complaints.Any(complaint =>
+                        complaint.Status == ComplaintStatus.Pending))
                 : query.Where(report =>
-                    !report.ComplaintSubmittedAt.HasValue);
+                    !report.Complaints.Any(complaint =>
+                        complaint.Status == ComplaintStatus.Pending));
         }
 
         if (request.IsEscalated.HasValue)
@@ -145,8 +149,9 @@ public sealed class GetAdminReportsQueryHandler
                 report.RequiresManualAssignment)
             .ThenBy(report =>
                 report.Status == ReportStatus.New ? 0 : 1)
-            .ThenByDescending(report =>
-                report.ComplaintSubmittedAt.HasValue)
+                .ThenByDescending(report =>
+                    report.Complaints.Any(complaint =>
+                        complaint.Status == ComplaintStatus.Pending))
             .ThenBy(report =>
                 (
                     report.Status == ReportStatus.Accepted
@@ -165,6 +170,8 @@ public sealed class GetAdminReportsQueryHandler
             .Select(report => new
             {
                 report.Id,
+                report.ReportCode,
+                report.Title,
                 CitizenName = report.Citizen.FullName,
                 report.CategoryId,
                 CategoryName = report.Category.Name,
@@ -179,11 +186,13 @@ public sealed class GetAdminReportsQueryHandler
                     ? null
                     : report.AssignedStaff.FullName,
                 report.Description,
+                report.OtherCategoryText,
                 report.Priority,
                 report.Status,
                 report.RequiresManualAssignment,
                 HasComplaint =
-                    report.ComplaintSubmittedAt.HasValue,
+                    report.Complaints.Any(complaint =>
+                        complaint.Status == ComplaintStatus.Pending),
                 UpvoteCount = report.Upvotes.Count(),
                 ThumbnailUrl = report.Images
                     .OrderBy(image => image.Id)
@@ -223,6 +232,8 @@ public sealed class GetAdminReportsQueryHandler
 
                 return new AdminReportSummaryResult(
                     row.Id,
+                    row.ReportCode,
+                    row.Title,
                     row.CitizenName,
                     row.CategoryId,
                     row.CategoryName,
@@ -233,6 +244,7 @@ public sealed class GetAdminReportsQueryHandler
                     row.AssignedStaffId,
                     row.AssignedStaffName,
                     row.Description,
+                    row.OtherCategoryText,
                     row.Priority,
                     row.Status,
                     row.RequiresManualAssignment,

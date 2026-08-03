@@ -113,9 +113,11 @@ public sealed class HanoiDevelopmentDataSeeder
 
         foreach (var seed in CategorySeeds)
         {
-            if (categoriesByName.ContainsKey(
-                    seed.Name))
+            if (categoriesByName.TryGetValue(
+                    seed.Name,
+                    out var existingCategory))
             {
+                existingCategory.IsOther = seed.IsOther;
                 continue;
             }
 
@@ -124,6 +126,7 @@ public sealed class HanoiDevelopmentDataSeeder
                 Name = seed.Name,
                 Description = seed.Description,
                 IsActive = true,
+                IsOther = seed.IsOther,
                 CreatedAt = currentTime,
                 UpdatedAt = null
             };
@@ -447,6 +450,11 @@ public sealed class HanoiDevelopmentDataSeeder
          */
         foreach (var categorySeed in CategorySeeds)
         {
+            if (categorySeed.DepartmentName is null)
+            {
+                continue;
+            }
+
             var category =
                 categories[categorySeed.Name];
 
@@ -684,7 +692,14 @@ public sealed class HanoiDevelopmentDataSeeder
                 "Hạ tầng viễn thông",
                 "Cáp võng thấp, tủ kỹ thuật hư hỏng "
                 + "hoặc thiết bị đô thị thông minh gặp lỗi.",
-                "Trung tâm Hạ tầng số Hà Nội")
+                "Trung tâm Hạ tầng số Hà Nội"),
+
+            new(
+                "Khác / Tôi không chắc",
+                "Sử dụng khi người gửi chưa xác định được loại sự cố. "
+                + "Admin sẽ phân loại trước khi giao đơn vị xử lý.",
+                null,
+                true)
         ];
 
     private static readonly DistrictSeed[]
@@ -910,7 +925,8 @@ public sealed class HanoiDevelopmentDataSeeder
     private sealed record CategorySeed(
         string Name,
         string Description,
-        string DepartmentName);
+        string? DepartmentName,
+        bool IsOther = false);
 
     private sealed record DistrictSeed(
         string Name,

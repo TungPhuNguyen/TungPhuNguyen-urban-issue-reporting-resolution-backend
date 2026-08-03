@@ -58,5 +58,11 @@ namespace UrbanIssue.Domain.Entities
 
         public ICollection<AuditLog> AuditLogs { get; set; }
             = new List<AuditLog>();
+
+        public ICollection<Complaint> SubmittedComplaints { get; set; }
+            = new List<Complaint>();
+
+        public ICollection<Complaint> ResolvedComplaints { get; set; }
+            = new List<Complaint>();
     }
 }

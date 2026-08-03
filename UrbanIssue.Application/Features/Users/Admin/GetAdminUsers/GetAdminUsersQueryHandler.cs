@@ -24,6 +24,7 @@ public sealed class GetAdminUsersQueryHandler
             GetAdminUsersQuery request,
             CancellationToken cancellationToken)
     {
+        var currentTime = DateTime.UtcNow;
         var query = _dbContext.Users
             .AsNoTracking()
             .AsQueryable();
@@ -86,6 +87,14 @@ public sealed class GetAdminUsersQueryHandler
                         : user.Department.Name,
 
                     user.IsActive,
+                    user.AssignedReports.Count(report =>
+                        report.Status == UrbanIssue.Domain.Enums.ReportStatus.Accepted
+                        || report.Status == UrbanIssue.Domain.Enums.ReportStatus.InProgress),
+                    user.AssignedReports.Count(report =>
+                        (report.Status == UrbanIssue.Domain.Enums.ReportStatus.Accepted
+                            || report.Status == UrbanIssue.Domain.Enums.ReportStatus.InProgress)
+                        && report.DueAt.HasValue
+                        && report.DueAt.Value < currentTime),
                     user.CreatedAt,
                     user.UpdatedAt))
             .ToListAsync(cancellationToken);

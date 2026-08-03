@@ -7,6 +7,7 @@ using UrbanIssue.Application.Features.Reports.CreateReport;
 using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Application.Features.Reports.GetMyReportById;
+using UrbanIssue.Application.Features.Reports.GetMyReportByCode;
 using UrbanIssue.Application.Features.Reports.GetMyReports;
 using UrbanIssue.Application.Features.Reports.GetReportTimeline;
 using UrbanIssue.Application.Features.Reports.Upvotes.AddReportUpvote;
@@ -19,6 +20,8 @@ using UrbanIssue.Application.Features.Reports.Comments.GetReportComments;
 using UrbanIssue.Application.Features.Reports.PostResolution.CloseReport;
 using UrbanIssue.Application.Features.Reports.PostResolution.Common;
 using UrbanIssue.Application.Features.Reports.PostResolution.SubmitComplaint;
+using UrbanIssue.Application.Features.Reports.UpdateReport;
+using UrbanIssue.Application.Features.Reports.CancelReport;
 
 
 
@@ -143,8 +146,14 @@ public sealed class ReportsController : ControllerBase
                     AreaId:
                         request.AreaId,
 
+                    Title:
+                        request.Title,
+
                     Description:
                         request.Description,
+
+                    OtherCategoryText:
+                        request.OtherCategoryText,
 
                     AddressText:
                         request.AddressText,
@@ -154,6 +163,9 @@ public sealed class ReportsController : ControllerBase
 
                     Longitude:
                         request.Longitude,
+
+                    ConfirmPossibleDuplicate:
+                        request.ConfirmPossibleDuplicate,
 
                     Images:
                         uploadFiles);
@@ -234,6 +246,56 @@ public sealed class ReportsController : ControllerBase
                 new GetMyReportByIdQuery(id),
                 cancellationToken);
 
+        return Ok(result);
+    }
+
+    [HttpGet("by-code/{reportCode}")]
+    [ProducesResponseType(typeof(CitizenReportDetailResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CitizenReportDetailResult>> GetMyReportByCode(
+        string reportCode,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetMyReportByCodeQuery(reportCode),
+            cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(CitizenReportDetailResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CitizenReportDetailResult>> UpdateReport(
+        Guid id,
+        [FromBody] UpdateReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(new UpdateReportCommand(
+            id,
+            request.CategoryId,
+            request.AreaId,
+            request.Title,
+            request.Description,
+            request.OtherCategoryText,
+            request.AddressText,
+            request.Latitude,
+            request.Longitude,
+            request.ConfirmPossibleDuplicate,
+            request.RowVersion), cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/cancel")]
+    [ProducesResponseType(typeof(PostResolutionActionResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PostResolutionActionResult>> CancelReport(
+        Guid id,
+        [FromBody] CancelReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new CancelReportCommand(id, request.Reason, request.RowVersion),
+            cancellationToken);
         return Ok(result);
     }
     /// <summary>
@@ -423,6 +485,7 @@ public sealed class ReportsController : ControllerBase
         return NoContent();
     }
     [HttpPost("{id:guid}/complaints")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(
     typeof(PostResolutionActionResult),
     StatusCodes.Status200OK)]
@@ -438,16 +501,35 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<PostResolutionActionResult>>
     SubmitComplaint(
         Guid id,
-        [FromBody] SubmitComplaintRequest request,
+        [FromForm] SubmitComplaintRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _sender.Send(
-            new SubmitComplaintCommand(
-                ReportId: id,
-                Reason: request.Reason),
-            cancellationToken);
+        var uploadFiles = request.Images
+            .Select(image => new UploadFile(
+                image.FileName,
+                image.ContentType,
+                image.Length,
+                image.OpenReadStream()))
+            .ToList();
 
-        return Ok(result);
+        try
+        {
+            var result = await _sender.Send(
+                new SubmitComplaintCommand(
+                    ReportId: id,
+                    Reason: request.Reason,
+                    Images: uploadFiles),
+                cancellationToken);
+
+            return Ok(result);
+        }
+        finally
+        {
+            foreach (var uploadFile in uploadFiles)
+            {
+                await uploadFile.Content.DisposeAsync();
+            }
+        }
     }
     [HttpPost("{id:guid}/close")]
     [ProducesResponseType(

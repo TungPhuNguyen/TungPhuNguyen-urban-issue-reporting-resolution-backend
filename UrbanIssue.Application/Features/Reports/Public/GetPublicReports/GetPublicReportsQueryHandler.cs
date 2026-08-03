@@ -1,8 +1,10 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
+using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Models;
 using UrbanIssue.Application.Features.Reports.Public.Common;
+using UrbanIssue.Application.Features.Reports.Common;
 using UrbanIssue.Domain.Enums;
 
 namespace UrbanIssue.Application.Features.Reports.Public.GetPublicReports;
@@ -13,11 +15,14 @@ public sealed class GetPublicReportsQueryHandler
         PagedResult<PublicReportMapItemResult>>
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly ICurrentUserService _currentUserService;
 
     public GetPublicReportsQueryHandler(
-        IApplicationDbContext dbContext)
+        IApplicationDbContext dbContext,
+        ICurrentUserService currentUserService)
     {
         _dbContext = dbContext;
+        _currentUserService = currentUserService;
     }
 
     public async Task<PagedResult<PublicReportMapItemResult>> Handle(
@@ -31,7 +36,19 @@ public sealed class GetPublicReportsQueryHandler
         var query = _dbContext.Reports
             .AsNoTracking()
             .Where(report =>
-                report.Status != ReportStatus.Rejected);
+                report.Status != ReportStatus.Rejected
+                && report.Status != ReportStatus.Cancelled);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            query = query.Where(report =>
+                report.ReportCode.Contains(search)
+                || report.Title.Contains(search)
+                || report.Description.Contains(search)
+                || report.Category.Name.Contains(search)
+                || report.Area.Name.Contains(search));
+        }
 
         if (request.CategoryId.HasValue)
         {
@@ -52,6 +69,12 @@ public sealed class GetPublicReportsQueryHandler
             query = query.Where(report =>
                 report.Status
                     == request.Status.Value);
+        }
+
+        if (request.Priority.HasValue)
+        {
+            query = query.Where(report =>
+                report.Priority == request.Priority.Value);
         }
 
         if (request.CreatedFrom.HasValue)
@@ -99,9 +122,26 @@ public sealed class GetPublicReportsQueryHandler
                     totalItems
                     / (double)request.PageSize);
 
-        var items = await query
-            .OrderByDescending(report =>
-                report.CreatedAt)
+        var orderedQuery = request.SortBy switch
+        {
+            ReportSortBy.MostUpvoted => query
+                .OrderByDescending(report => report.Upvotes.Count())
+                .ThenByDescending(report => report.CreatedAt),
+            ReportSortBy.Nearby => query
+                .OrderBy(report =>
+                    (report.Latitude - request.CurrentLatitude!.Value)
+                    * (report.Latitude - request.CurrentLatitude.Value)
+                    + (report.Longitude - request.CurrentLongitude!.Value)
+                    * (report.Longitude - request.CurrentLongitude.Value))
+                .ThenByDescending(report => report.CreatedAt),
+            _ => query.OrderByDescending(report => report.CreatedAt)
+        };
+
+        var currentUserId = _currentUserService.IsAuthenticated
+            ? _currentUserService.UserId
+            : (Guid?)null;
+
+        var items = await orderedQuery
             .ThenByDescending(report =>
                 report.Id)
             .Skip(
@@ -111,6 +151,8 @@ public sealed class GetPublicReportsQueryHandler
             .Select(report =>
                 new PublicReportMapItemResult(
                     report.Id,
+                    report.ReportCode,
+                    report.Title,
 
                     report.CategoryId,
                     report.Category.Name,
@@ -124,15 +166,18 @@ public sealed class GetPublicReportsQueryHandler
                         : report.Department.Name,
 
                     report.Description,
-                    report.AddressText,
+                    report.Area.Name,
 
-                    report.Latitude,
-                    report.Longitude,
+                    Math.Round(report.Latitude, 3),
+                    Math.Round(report.Longitude, 3),
 
                     report.Priority,
                     report.Status,
 
                     report.Upvotes.Count(),
+                    currentUserId.HasValue
+                        && report.Upvotes.Any(upvote =>
+                            upvote.UserId == currentUserId.Value),
                     report.Comments.Count(),
 
                     report.Images
@@ -143,7 +188,25 @@ public sealed class GetPublicReportsQueryHandler
 
                     report.CreatedAt,
                     report.ResolvedAt,
-                    report.ClosedAt))
+                    report.ClosedAt,
+                    new ReportAllowedActionsResult(
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        currentUserId.HasValue
+                            && report.CitizenId != currentUserId.Value
+                            && report.Status != ReportStatus.Closed
+                            && report.Status != ReportStatus.Rejected
+                            && report.Status != ReportStatus.Cancelled)))
             .ToListAsync(
                 cancellationToken);
 

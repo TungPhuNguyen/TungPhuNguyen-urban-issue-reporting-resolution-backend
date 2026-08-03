@@ -10,6 +10,9 @@ using UrbanIssue.Application
     .GetCurrentUser;
 using UrbanIssue.Application.Features.Auth.Logout;
 using UrbanIssue.Application.Features.Auth.RefreshAccessToken;
+using UrbanIssue.Application.Features.Auth.ChangePassword;
+using UrbanIssue.Application.Features.Auth.UpdateProfile;
+using UrbanIssue.API.Contracts.Auth;
 
 
 
@@ -185,6 +188,31 @@ public sealed class AuthController
             command,
             cancellationToken);
 
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<GetCurrentUserResult>> UpdateProfile(
+        [FromBody] UpdateProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new UpdateProfileCommand(request.FullName, request.PhoneNumber),
+            cancellationToken);
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(new ChangePasswordCommand(
+            request.CurrentPassword,
+            request.NewPassword,
+            request.ConfirmNewPassword), cancellationToken);
         return NoContent();
     }
 }

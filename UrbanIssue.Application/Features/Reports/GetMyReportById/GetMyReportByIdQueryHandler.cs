@@ -27,6 +27,7 @@ public sealed class GetMyReportByIdQueryHandler
         CancellationToken cancellationToken)
     {
         var citizenId = _currentUserService.UserId;
+        var currentTime = DateTime.UtcNow;
 
         /*
          * Lọc đồng thời theo ReportId và CitizenId.
@@ -41,6 +42,9 @@ public sealed class GetMyReportByIdQueryHandler
             .Select(item =>
                 new CitizenReportDetailResult(
                     item.Id,
+                    item.ReportNumber,
+                    item.ReportCode,
+                    item.Title,
 
                     item.CategoryId,
                     item.Category.Name,
@@ -54,6 +58,7 @@ public sealed class GetMyReportByIdQueryHandler
                         : item.Department.Name,
 
                     item.Description,
+                    item.OtherCategoryText,
                     item.AddressText,
 
                     item.Latitude,
@@ -88,7 +93,70 @@ public sealed class GetMyReportByIdQueryHandler
                     item.RejectedReason,
 
                     item.ReopenedAt,
-                    item.ReopenReason))
+                    item.ReopenReason,
+
+                    item.Upvotes.Any(upvote =>
+                        upvote.UserId == citizenId),
+
+                    item.Complaints
+                        .OrderByDescending(complaint => complaint.CreatedAt)
+                        .Select(complaint => new ComplaintResult(
+                            complaint.Id,
+                            complaint.Status,
+                            complaint.Reason,
+                            complaint.AdminDecisionReason,
+                            complaint.ResolvedByAdminId,
+                            complaint.ResolvedByAdmin == null
+                                ? null
+                                : complaint.ResolvedByAdmin.FullName,
+                            complaint.CreatedAt,
+                            complaint.ResolvedAt,
+                            complaint.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    item.StatusUpdates
+                        .Where(update =>
+                            update.NewStatus == UrbanIssue.Domain.Enums.ReportStatus.Resolved)
+                        .OrderByDescending(update => update.CreatedAt)
+                        .Select(update => new ReportResolutionResult(
+                            update.Note,
+                            update.UpdatedByUserId,
+                            update.UpdatedByUser == null
+                                ? null
+                                : update.UpdatedByUser.FullName,
+                            update.CreatedAt,
+                            update.Images
+                                .OrderBy(image => image.Id)
+                                .Select(image => image.ImageUrl)
+                                .ToList()))
+                        .FirstOrDefault(),
+
+                    new ReportAllowedActionsResult(
+                        item.Status == UrbanIssue.Domain.Enums.ReportStatus.New
+                            || item.Status == UrbanIssue.Domain.Enums.ReportStatus.Assigned,
+                        item.Status == UrbanIssue.Domain.Enums.ReportStatus.New
+                            || item.Status == UrbanIssue.Domain.Enums.ReportStatus.Assigned,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        item.Status == UrbanIssue.Domain.Enums.ReportStatus.Resolved
+                            && !item.Complaints.Any(complaint =>
+                                complaint.Status == UrbanIssue.Domain.Enums.ComplaintStatus.Pending),
+                        item.Status == UrbanIssue.Domain.Enums.ReportStatus.Resolved
+                            && item.ResolvedAt.HasValue
+                            && item.ResolvedAt.Value.AddDays(7) >= currentTime
+                            && !item.Complaints.Any(),
+                        false,
+                        false),
+
+                    item.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
         if (report is null)

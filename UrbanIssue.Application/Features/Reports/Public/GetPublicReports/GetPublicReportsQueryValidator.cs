@@ -8,6 +8,11 @@ public sealed class GetPublicReportsQueryValidator
 {
     public GetPublicReportsQueryValidator()
     {
+        RuleFor(x => x.Search)
+            .MaximumLength(150)
+            .WithMessage("Từ khóa tìm kiếm không được vượt quá 150 ký tự.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Search));
+
         RuleFor(x => x.CategoryId)
             .GreaterThan(0)
             .WithMessage("ID loại sự cố phải lớn hơn 0.")
@@ -26,9 +31,21 @@ public sealed class GetPublicReportsQueryValidator
         RuleFor(x => x.Status)
             .Must(status =>
                 !status.HasValue
-                || status.Value != ReportStatus.Rejected)
+                || (status.Value != ReportStatus.Rejected
+                    && status.Value != ReportStatus.Cancelled))
             .WithMessage(
                 "Không thể truy vấn báo cáo Rejected trên API công khai.");
+
+        RuleFor(x => x.SortBy)
+            .IsInEnum()
+            .WithMessage("Kiểu sắp xếp không hợp lệ.");
+
+        RuleFor(x => x)
+            .Must(x => x.SortBy != ReportSortBy.Nearby
+                || (x.CurrentLatitude.HasValue
+                    && x.CurrentLongitude.HasValue))
+            .WithMessage(
+                "Cần cung cấp CurrentLatitude và CurrentLongitude khi sắp xếp Nearby.");
 
         RuleFor(x => x.CreatedFrom)
             .LessThanOrEqualTo(x => x.CreatedTo)

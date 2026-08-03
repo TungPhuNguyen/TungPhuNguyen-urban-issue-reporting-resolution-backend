@@ -31,6 +31,14 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .HasDefaultValue(true)
                 .IsRequired();
 
+            builder.Property(x => x.IsOther)
+                .HasDefaultValue(false)
+                .IsRequired();
+
+            builder.HasIndex(x => x.IsOther)
+                .IsUnique()
+                .HasFilter("[IsOther] = 1");
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
 

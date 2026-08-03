@@ -6,6 +6,7 @@ using UrbanIssue.Application.Features.Notifications.Common;
 using UrbanIssue.Application.Features.Notifications.GetMyNotifications;
 using UrbanIssue.Application.Features.Notifications.MarkAllNotificationsAsRead;
 using UrbanIssue.Application.Features.Notifications.MarkNotificationAsRead;
+using UrbanIssue.Application.Features.Notifications.GetUnreadNotificationCount;
 
 namespace UrbanIssue.API.Controllers.V1;
 
@@ -60,6 +61,17 @@ public sealed class NotificationsController
                 new MarkNotificationAsReadCommand(id),
                 cancellationToken);
 
+        return Ok(result);
+    }
+
+    [HttpGet("unread-count")]
+    [ProducesResponseType(typeof(UnreadNotificationCountResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UnreadNotificationCountResult>> GetUnreadCount(
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new GetUnreadNotificationCountQuery(),
+            cancellationToken);
         return Ok(result);
     }
 

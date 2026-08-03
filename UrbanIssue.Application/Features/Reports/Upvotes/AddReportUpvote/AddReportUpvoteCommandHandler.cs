@@ -42,6 +42,7 @@ public sealed class AddReportUpvoteCommandHandler
                 .Select(report => new
                 {
                     report.Id,
+                    report.ReportCode,
                     report.CitizenId,
                     report.Status
                 })
@@ -62,7 +63,8 @@ public sealed class AddReportUpvoteCommandHandler
 
         if (report.Status is
             ReportStatus.Closed or
-            ReportStatus.Rejected)
+            ReportStatus.Rejected or
+            ReportStatus.Cancelled)
         {
             throw new ConflictException(
                 "Không thể upvote báo cáo đã đóng hoặc bị từ chối.");
@@ -111,6 +113,7 @@ public sealed class AddReportUpvoteCommandHandler
 
         return new ReportUpvoteResult(
             ReportId: request.ReportId,
+            ReportCode: report.ReportCode,
             IsUpvoted: true,
             UpvoteCount: upvoteCount);
     }

@@ -8,6 +8,8 @@ public sealed record AdminUserSummaryResult(
     int? DepartmentId,
     string? DepartmentName,
     bool IsActive,
+    int ActiveAssignedReportCount,
+    int OverdueReportCount,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 

@@ -33,6 +33,7 @@ public sealed class MarkNotificationAsReadCommandHandler
 
         var notification =
             await _dbContext.Notifications
+                .Include(item => item.Report)
                 .SingleOrDefaultAsync(
                     item =>
                         item.Id
@@ -63,6 +64,10 @@ public sealed class MarkNotificationAsReadCommandHandler
         return new NotificationResult(
             notification.Id,
             notification.ReportId,
+            notification.Report?.ReportCode,
+            notification.Report is null
+                ? null
+                : $"/reports/{notification.Report.ReportCode}",
             notification.Type,
             notification.Title,
             notification.Message,

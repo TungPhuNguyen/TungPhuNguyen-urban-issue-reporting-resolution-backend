@@ -26,6 +26,12 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Configurations
                 .HasMaxLength(20)
                 .IsRequired();
 
+            builder.Property(x => x.EventType)
+                .HasConversion<string>()
+                .HasMaxLength(50)
+                .HasDefaultValue(UrbanIssue.Domain.Enums.TimelineEventType.StatusChanged)
+                .IsRequired();
+
             builder.Property(x => x.Note)
                 .HasColumnType("nvarchar(max)")
                 .IsRequired(false);

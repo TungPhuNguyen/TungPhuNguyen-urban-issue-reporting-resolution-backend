@@ -7,6 +7,7 @@ using UrbanIssue.Application.Common.Interfaces.Authentication;
 using UrbanIssue.Application.Common.Interfaces.Persistence;
 using UrbanIssue.Application.Common.Interfaces.Storage;
 using UrbanIssue.Application.Common.Models;
+using UrbanIssue.Application.Features.Reports.CheckDuplicateReports;
 using UrbanIssue.Domain.Entities;
 using UrbanIssue.Domain.Enums;
 
@@ -26,17 +27,20 @@ public sealed class CreateReportCommandHandler
     private readonly IFileStorageService
         _fileStorageService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IReportDuplicateChecker _duplicateChecker;
 
     public CreateReportCommandHandler(
     IApplicationDbContext dbContext,
     ICurrentUserService currentUserService,
     IFileStorageService fileStorageService,
-    IAuditLogService auditLogService)
+    IAuditLogService auditLogService,
+    IReportDuplicateChecker duplicateChecker)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
         _fileStorageService = fileStorageService;
         _auditLogService = auditLogService;
+        _duplicateChecker = duplicateChecker;
     }
     public async Task<CreateReportResult> Handle(
         CreateReportCommand request,
@@ -93,12 +97,36 @@ public sealed class CreateReportCommandHandler
                 + "Không thể gửi báo cáo trực tiếp cho Quận.");
         }
 
+        if (category.IsOther
+            && string.IsNullOrWhiteSpace(request.OtherCategoryText))
+        {
+            throw new ConflictException(
+                "Khi chọn loại sự cố 'Khác', bạn phải mô tả loại sự cố cụ thể.");
+        }
+
+        if (!category.IsOther && !request.ConfirmPossibleDuplicate)
+        {
+            var duplicates = await _duplicateChecker.CheckAsync(
+                request.CategoryId,
+                request.Latitude,
+                request.Longitude,
+                cancellationToken);
+
+            if (duplicates.HasPossibleDuplicates)
+            {
+                throw new PotentialDuplicateException(duplicates);
+            }
+        }
+
         /*
          * Tìm các RoutingRule đang hoạt động
          * khớp chính xác Category + Area.
          */
-        var routingCandidates =
-            await _dbContext.RoutingRules
+        var routingCandidates = new List<RoutingCandidate>();
+
+        if (!category.IsOther)
+        {
+            routingCandidates = await _dbContext.RoutingRules
                 .AsNoTracking()
                 .Where(rule =>
                     rule.IsActive
@@ -118,6 +146,7 @@ public sealed class CreateReportCommandHandler
                         rule.PriorityOrder))
                 .ToListAsync(
                     cancellationToken);
+        }
 
         int? departmentId = null;
         string? departmentName = null;
@@ -188,8 +217,16 @@ public sealed class CreateReportCommandHandler
                 DepartmentId =
                     departmentId,
 
+                Title =
+                    request.Title.Trim(),
+
                 Description =
                     request.Description.Trim(),
+
+                OtherCategoryText =
+                    category.IsOther
+                        ? request.OtherCategoryText!.Trim()
+                        : null,
 
                 AddressText =
                     string.IsNullOrWhiteSpace(
@@ -234,6 +271,9 @@ public sealed class CreateReportCommandHandler
 
                 NewStatus =
                     reportStatus,
+
+                EventType =
+                    TimelineEventType.ReportCreated,
 
                 Note =
                     initialStatusNote,
@@ -302,6 +342,8 @@ public sealed class CreateReportCommandHandler
     detail:
         new
         {
+            report.ReportCode,
+            report.Title,
             report.CategoryId,
             report.AreaId,
             report.DepartmentId,
@@ -338,6 +380,15 @@ public sealed class CreateReportCommandHandler
         return new CreateReportResult(
             Id:
                 report.Id,
+
+            ReportNumber:
+                report.ReportNumber,
+
+            ReportCode:
+                report.ReportCode,
+
+            Title:
+                report.Title,
 
             Status:
                 report.Status,

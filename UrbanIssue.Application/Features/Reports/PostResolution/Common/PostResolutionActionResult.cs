@@ -9,4 +9,7 @@ public sealed record PostResolutionActionResult(
     DateTime? ComplaintDeadline,
     DateTime? ClosedAt,
     DateTime? ReopenedAt,
-    DateTime? DueAt);
+    DateTime? DueAt,
+    string? ReportCode = null,
+    int? ComplaintId = null,
+    ComplaintStatus? ComplaintStatus = null);

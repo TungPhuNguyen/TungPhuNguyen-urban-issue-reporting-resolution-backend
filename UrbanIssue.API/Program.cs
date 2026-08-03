@@ -14,6 +14,7 @@ using UrbanIssue.Infrastructure.Sqlserver.Services.Auditing;
 using UrbanIssue.Application.Common.Interfaces.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
+using System.Threading.RateLimiting;
 
 
 
@@ -50,7 +51,11 @@ builder.Services.AddInfrastructure(
 builder.Services.AddJwtAuthentication(
     builder.Configuration);
 
-// Thêm CORS cho React frontend
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? ["http://localhost:5173"];
+
 builder.Services.AddCors(
     options =>
     {
@@ -60,7 +65,7 @@ builder.Services.AddCors(
             {
                 policy
                     .WithOrigins(
-                        "http://localhost:5173")
+                        allowedOrigins)
                     .AllowAnyHeader()
                     .AllowAnyMethod();
             });
@@ -90,6 +95,25 @@ builder.Services
         "Thời gian SLA mặc định phải lớn hơn 0.")
     .ValidateOnStart();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<
+    INotificationRealtimePublisher,
+    SignalRNotificationRealtimePublisher>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 
 builder.Services.AddScoped<
     ICurrentUserService,
@@ -112,34 +136,6 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     INotificationService,
     NotificationService>();
-
-builder.Services.AddCors(
-    options =>
-    {
-        options.AddPolicy(
-            AllowFrontendPolicy,
-            policy =>
-            {
-                policy
-                    .WithOrigins(
-                        "http://localhost:5173")
-                    .AllowAnyHeader()
-                    .AllowAnyMethod();
-            });
-    });
-
-builder.Services
-    .AddOptions<DefaultSlaSettings>()
-    .Bind(
-        builder.Configuration.GetRequiredSection(
-            DefaultSlaSettings.SectionName))
-    .Validate(
-        settings =>
-            settings.LowHours > 0
-            && settings.MediumHours > 0
-            && settings.HighHours > 0,
-        "Thời gian SLA mặc định phải lớn hơn 0.")
-    .ValidateOnStart();
 
 var app =
     builder.Build();
@@ -172,17 +168,23 @@ if (app.Environment.IsDevelopment())
         });
 }
 
-// Có thể bật lại khi HTTPS đã được cấu hình.
-// app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
 app.UseStaticFiles();
 
 app.UseCors(AllowFrontendPolicy);
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationsHub>("/hubs/notifications");
 
 app.Run();

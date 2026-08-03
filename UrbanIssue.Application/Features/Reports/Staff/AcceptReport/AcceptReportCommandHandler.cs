@@ -187,6 +187,7 @@ public sealed class AcceptReportCommandHandler
 
         return new StaffReportActionResult(
             Id: report.Id,
+            ReportCode: report.ReportCode,
             Status: report.Status,
             Priority: report.Priority,
             AssignedStaffId: report.AssignedStaffId,

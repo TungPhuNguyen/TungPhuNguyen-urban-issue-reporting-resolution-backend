@@ -77,7 +77,9 @@ public sealed class GetDepartmentReportsQueryHandler
             var search = request.Search.Trim();
 
             query = query.Where(report =>
-                report.Description.Contains(search)
+                report.ReportCode.Contains(search)
+                || report.Title.Contains(search)
+                || report.Description.Contains(search)
                 || (
                     report.AddressText != null
                     && report.AddressText.Contains(search)
@@ -161,11 +163,14 @@ public sealed class GetDepartmentReportsQueryHandler
             .Select(report => new
             {
                 report.Id,
+                report.ReportCode,
+                report.Title,
                 report.CategoryId,
                 CategoryName = report.Category.Name,
                 report.AreaId,
                 AreaName = report.Area.Name,
                 report.Description,
+                report.OtherCategoryText,
                 report.AddressText,
                 report.Priority,
                 report.Status,
@@ -212,11 +217,14 @@ public sealed class GetDepartmentReportsQueryHandler
 
                 return new StaffReportSummaryResult(
                     row.Id,
+                    row.ReportCode,
+                    row.Title,
                     row.CategoryId,
                     row.CategoryName,
                     row.AreaId,
                     row.AreaName,
                     row.Description,
+                    row.OtherCategoryText,
                     row.AddressText,
                     row.Priority,
                     row.Status,

@@ -79,15 +79,18 @@ public sealed class GetDashboardSummaryQueryHandler
                         report.Status
                             == ReportStatus.Rejected),
 
+                CancelledReports =
+                    group.Count(report =>
+                        report.Status == ReportStatus.Cancelled),
+
                 RequiresManualAssignmentReports =
                     group.Count(report =>
                         report.RequiresManualAssignment),
 
                 PendingComplaintReports =
                     group.Count(report =>
-                        report.ComplaintSubmittedAt.HasValue
-                        && report.Status
-                            == ReportStatus.Resolved),
+                        report.Complaints.Any(complaint =>
+                            complaint.Status == ComplaintStatus.Pending)),
 
                 ActiveOverdueReports =
                     group.Count(report =>
@@ -134,7 +137,8 @@ public sealed class GetDashboardSummaryQueryHandler
 
         var eligibleReports =
             aggregate.TotalReports
-            - aggregate.RejectedReports;
+            - aggregate.RejectedReports
+            - aggregate.CancelledReports;
 
         var resolutionRate =
             eligibleReports == 0

@@ -32,6 +32,7 @@ public sealed class GetCategoryByIdQueryHandler
                         category.Id,
                         category.Name,
                         category.Description,
+                        category.IsOther,
                         category.IsActive,
                         category.CreatedAt,
                         category.UpdatedAt))

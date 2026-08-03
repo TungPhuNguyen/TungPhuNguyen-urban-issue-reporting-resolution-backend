@@ -44,6 +44,7 @@ public sealed class AssignReportCommandHandler
         var adminId = _currentUserService.UserId;
 
         var report = await _dbContext.Reports
+            .Include(item => item.Category)
             .SingleOrDefaultAsync(
                 report => report.Id == request.ReportId,
                 cancellationToken);
@@ -58,6 +59,12 @@ public sealed class AssignReportCommandHandler
         {
             throw new ConflictException(
                 "Chỉ có thể phân công báo cáo đang ở trạng thái New.");
+        }
+
+        if (report.Category.IsOther)
+        {
+            throw new ConflictException(
+                "Phải phân loại báo cáo 'Khác' trước khi phân công.");
         }
 
         var department = await _dbContext.Departments
@@ -93,6 +100,7 @@ public sealed class AssignReportCommandHandler
                 .AsNoTracking()
                 .Where(user =>
                     user.Id == request.StaffId.Value
+                    && user.IsActive
                     && user.DepartmentId == request.DepartmentId
                     && user.Role.Name == "Staff")
                 .Select(user => new
@@ -205,6 +213,7 @@ public sealed class AssignReportCommandHandler
 
         return new AdminReportActionResult(
             ReportId: report.Id,
+            ReportCode: report.ReportCode,
             Status: report.Status,
             DepartmentId: report.DepartmentId,
             DepartmentName: department.Name,

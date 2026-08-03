@@ -58,10 +58,13 @@ public sealed class ReopenReportCommandHandler
                 + "đang ở trạng thái Resolved.");
         }
 
-        if (!report.HasSubmittedComplaint
-            || !report.ComplaintSubmittedAt.HasValue
-            || string.IsNullOrWhiteSpace(
-                report.ComplaintReason))
+        var complaint = await _dbContext.Complaints
+            .SingleOrDefaultAsync(
+                item => item.ReportId == report.Id
+                    && item.Status == ComplaintStatus.Pending,
+                cancellationToken);
+
+        if (complaint is null)
         {
             throw new ConflictException(
                 "Báo cáo không có khiếu nại "
@@ -88,10 +91,8 @@ public sealed class ReopenReportCommandHandler
 
         var oldResolvedAt = report.ResolvedAt;
         var oldDueAt = report.DueAt;
-        var complaintSubmittedAt =
-            report.ComplaintSubmittedAt;
-        var complaintReason =
-            report.ComplaintReason.Trim();
+        var complaintSubmittedAt = complaint.CreatedAt;
+        var complaintReason = complaint.Reason;
         var adminReason =
             request.Reason.Trim();
         var assignedStaffId =
@@ -117,13 +118,10 @@ public sealed class ReopenReportCommandHandler
         report.IsEscalated = false;
         report.EscalatedAt = null;
 
-        /*
-         * Xóa trạng thái khiếu nại đang chờ để Report
-         * tiếp tục xử lý. HasSubmittedComplaint vẫn giữ
-         * true nhằm chặn Citizen khiếu nại lần hai.
-         */
-        report.ComplaintSubmittedAt = null;
-        report.ComplaintReason = null;
+        complaint.Status = ComplaintStatus.Accepted;
+        complaint.AdminDecisionReason = adminReason;
+        complaint.ResolvedByAdminId = adminId;
+        complaint.ResolvedAt = currentTime;
         report.UpdatedAt = currentTime;
 
         _dbContext.StatusUpdates.Add(
@@ -133,6 +131,7 @@ public sealed class ReopenReportCommandHandler
                 UpdatedByUserId = adminId,
                 OldStatus = oldStatus,
                 NewStatus = ReportStatus.InProgress,
+                EventType = TimelineEventType.ComplaintAccepted,
                 Note =
                     "Admin chấp nhận khiếu nại và mở lại "
                     + $"báo cáo. Khiếu nại: {complaintReason}. "
@@ -200,6 +199,9 @@ public sealed class ReopenReportCommandHandler
             ComplaintDeadline: null,
             ClosedAt: report.ClosedAt,
             ReopenedAt: report.ReopenedAt,
-            DueAt: report.DueAt);
+            DueAt: report.DueAt,
+            ReportCode: report.ReportCode,
+            ComplaintId: complaint.Id,
+            ComplaintStatus: complaint.Status);
     }
 }

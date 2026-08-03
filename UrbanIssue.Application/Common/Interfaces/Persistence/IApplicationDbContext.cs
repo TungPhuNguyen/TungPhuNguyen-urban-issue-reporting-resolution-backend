@@ -38,6 +38,10 @@ namespace UrbanIssue.Application.Common.Interfaces.Persistence
 
         DbSet<Notification> Notifications { get; }
 
+        DbSet<Complaint> Complaints { get; }
+
+        DbSet<ComplaintImage> ComplaintImages { get; }
+
         DbSet<AuditLog> AuditLogs { get; }
 
         Task<int> SaveChangesAsync(

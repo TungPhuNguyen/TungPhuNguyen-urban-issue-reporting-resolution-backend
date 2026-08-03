@@ -41,6 +41,8 @@ public sealed class GetReportTimelineQueryHandler
             .Where(item => item.Id == request.ReportId)
             .Select(item => new TimelineReportAccess(
                 item.Id,
+                item.ReportCode,
+                item.Title,
                 item.Status,
                 item.CitizenId,
                 item.DepartmentId,
@@ -83,6 +85,7 @@ public sealed class GetReportTimelineQueryHandler
             .Select(statusUpdate =>
                 new ReportTimelineItemResult(
                     statusUpdate.Id,
+                    statusUpdate.EventType,
                     statusUpdate.OldStatus,
                     statusUpdate.NewStatus,
                     statusUpdate.Note,
@@ -99,6 +102,8 @@ public sealed class GetReportTimelineQueryHandler
 
         return new GetReportTimelineResult(
             ReportId: report.Id,
+            ReportCode: report.ReportCode,
+            Title: report.Title,
             CurrentStatus: report.Status,
             Items: timelineItems);
     }
@@ -135,6 +140,8 @@ public sealed class GetReportTimelineQueryHandler
 
     private sealed record TimelineReportAccess(
         Guid Id,
+        string ReportCode,
+        string Title,
         ReportStatus Status,
         Guid CitizenId,
         int? DepartmentId,

@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using UrbanIssue.Application.Common.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 using FluentValidationException =
     FluentValidation.ValidationException;
@@ -37,6 +38,14 @@ public sealed class GlobalExceptionHandler
         var (statusCode, title) =
             exception switch
             {
+                PotentialDuplicateException => (
+                    StatusCodes.Status409Conflict,
+                    "Phát hiện phản ánh có thể bị trùng."),
+
+                DbUpdateConcurrencyException => (
+                    StatusCodes.Status409Conflict,
+                    "Dữ liệu vừa được người khác thay đổi."),
+
                 ConflictException => (
                     StatusCodes.Status409Conflict,
                     "Dữ liệu bị xung đột."),
@@ -90,6 +99,12 @@ public sealed class GlobalExceptionHandler
 
         problemDetails.Extensions["traceId"] =
             httpContext.TraceIdentifier;
+
+        if (exception is PotentialDuplicateException duplicateException)
+        {
+            problemDetails.Extensions["duplicates"] =
+                duplicateException.Duplicates;
+        }
 
         httpContext.Response.StatusCode =
             statusCode;
