@@ -17,7 +17,7 @@ using UrbanIssue.Infrastructure.Sqlserver.Services.Notifications;
 using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
 using UrbanIssue.API.Settings;
 using System.Threading.RateLimiting;
-
+using UrbanIssue.API.Common.ModelBinding;
 
 
 
@@ -28,7 +28,13 @@ const string AllowFrontendPolicy =
     "AllowFrontend";
 
 builder.Services
-    .AddControllers()
+    .AddControllers(
+        options =>
+        {
+            options.ModelBinderProviders.Insert(
+                0,
+                new InvariantDecimalModelBinderProvider());
+        })
     .AddJsonOptions(
         options =>
         {
@@ -129,16 +135,37 @@ builder.Services
     .AddOptions<CloudinarySettings>()
     .Bind(builder.Configuration.GetSection(CloudinarySettings.SectionName));
 builder.Services.AddScoped<LocalFileStorageService>();
-builder.Services.AddHttpClient<CloudinaryFileStorageService>();
-builder.Services.AddScoped<IFileStorageService>(serviceProvider =>
-{
-    var provider = builder.Configuration["FileStorage:Provider"]
-        ?? "Local";
+builder.Services
+    .AddOptions<CloudinarySettings>()
+    .Bind(
+        builder.Configuration.GetRequiredSection(
+            CloudinarySettings.SectionName))
+    .Validate(
+        settings =>
+            !string.IsNullOrWhiteSpace(settings.CloudName)
+            && !string.IsNullOrWhiteSpace(settings.ApiKey)
+            && !string.IsNullOrWhiteSpace(settings.ApiSecret),
+        "Cloudinary phải có CloudName, ApiKey và ApiSecret.")
+    .ValidateOnStart();
 
-    return provider.Equals("Cloudinary", StringComparison.OrdinalIgnoreCase)
-        ? serviceProvider.GetRequiredService<CloudinaryFileStorageService>()
-        : serviceProvider.GetRequiredService<LocalFileStorageService>();
-});
+builder.Services.AddScoped<LocalFileStorageService>();
+builder.Services.AddScoped<CloudinaryFileStorageService>();
+
+builder.Services.AddScoped<IFileStorageService>(
+    serviceProvider =>
+    {
+        var provider =
+            builder.Configuration["FileStorage:Provider"]
+            ?? "Local";
+
+        return provider.Equals(
+            "Cloudinary",
+            StringComparison.OrdinalIgnoreCase)
+            ? serviceProvider.GetRequiredService<
+                CloudinaryFileStorageService>()
+            : serviceProvider.GetRequiredService<
+                LocalFileStorageService>();
+    });
 
 builder.Services
     .AddOptions<EmailSettings>()

@@ -1,11 +1,11 @@
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Options;
+using System.Security.AccessControl;
 using UrbanIssue.API.Settings;
 using UrbanIssue.Application.Common.Interfaces.Storage;
 using UrbanIssue.Application.Common.Models;
+using ResourceType = System.Security.AccessControl.ResourceType;
 
 namespace UrbanIssue.API.Services;
 
@@ -21,23 +21,29 @@ public sealed class CloudinaryFileStorageService
             ".webp"
         };
 
-    private readonly HttpClient _httpClient;
-    private readonly CloudinarySettings _settings;
+    private readonly Cloudinary _cloudinary;
 
     public CloudinaryFileStorageService(
-        HttpClient httpClient,
-        IOptions<CloudinarySettings> settings)
+        IOptions<CloudinarySettings> options)
     {
-        _httpClient = httpClient;
-        _settings = settings.Value;
+        var settings = options.Value;
 
-        if (string.IsNullOrWhiteSpace(_settings.CloudName)
-            || string.IsNullOrWhiteSpace(_settings.ApiKey)
-            || string.IsNullOrWhiteSpace(_settings.ApiSecret))
+        if (string.IsNullOrWhiteSpace(settings.CloudName)
+            || string.IsNullOrWhiteSpace(settings.ApiKey)
+            || string.IsNullOrWhiteSpace(settings.ApiSecret))
         {
             throw new InvalidOperationException(
-                "Cloudinary chưa được cấu hình đầy đủ CloudName, ApiKey và ApiSecret.");
+                "Cloudinary chưa được cấu hình đầy đủ "
+                + "CloudName, ApiKey và ApiSecret.");
         }
+
+        _cloudinary = new Cloudinary(
+            new Account(
+                settings.CloudName.Trim(),
+                settings.ApiKey.Trim(),
+                settings.ApiSecret.Trim()));
+
+        _cloudinary.Api.Secure = true;
     }
 
     public async Task<StoredFile> SaveAsync(
@@ -45,155 +51,168 @@ public sealed class CloudinaryFileStorageService
         UploadFile file,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(file);
+
+        if (file.Length <= 0)
+        {
+            throw new InvalidOperationException(
+                "File ảnh không có dữ liệu.");
+        }
+
         var extension = Path.GetExtension(file.FileName);
 
         if (string.IsNullOrWhiteSpace(extension)
             || !AllowedExtensions.Contains(extension))
         {
             throw new InvalidOperationException(
-                "Định dạng ảnh không được hỗ trợ.");
+                "Chỉ hỗ trợ ảnh JPG, JPEG, PNG hoặc WEBP.");
         }
 
-        await using var contentStream = new MemoryStream();
-        await file.Content.CopyToAsync(contentStream, cancellationToken);
-        var bytes = contentStream.ToArray();
+        await using var buffer = new MemoryStream();
+
+        if (file.Content.CanSeek)
+        {
+            file.Content.Position = 0;
+        }
+
+        await file.Content.CopyToAsync(
+            buffer,
+            cancellationToken);
+
+        var bytes = buffer.ToArray();
 
         if (!HasExpectedImageSignature(bytes, extension))
         {
             throw new InvalidOperationException(
-                "Nội dung file không khớp với định dạng ảnh JPG, PNG hoặc WEBP.");
+                "Nội dung file không khớp với định dạng "
+                + "ảnh JPG, PNG hoặc WEBP.");
         }
 
-        var timestamp = DateTimeOffset.UtcNow
-            .ToUnixTimeSeconds()
-            .ToString(CultureInfo.InvariantCulture);
-        var normalizedFolder = folder.Trim('/');
-        var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        buffer.Position = 0;
+
+        var normalizedFolder = NormalizeFolder(folder);
+
+        var uploadParameters = new ImageUploadParams
         {
-            ["folder"] = normalizedFolder,
-            ["timestamp"] = timestamp
+            File = new FileDescription(
+                file.FileName,
+                buffer),
+
+            Folder = normalizedFolder,
+            PublicId = Guid.NewGuid().ToString("N"),
+            Overwrite = false
         };
 
-        using var form = new MultipartFormDataContent();
-        using var imageContent = new ByteArrayContent(bytes);
-        imageContent.Headers.ContentType =
-            new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+        ImageUploadResult uploadResult;
 
-        form.Add(imageContent, "file", file.FileName);
-        form.Add(new StringContent(_settings.ApiKey), "api_key");
-        form.Add(new StringContent(timestamp), "timestamp");
-        form.Add(new StringContent(normalizedFolder), "folder");
-        form.Add(new StringContent(CreateSignature(parameters)), "signature");
-
-        var endpoint =
-            $"https://api.cloudinary.com/v1_1/{Uri.EscapeDataString(_settings.CloudName)}/image/upload";
-        using var response = await _httpClient.PostAsync(
-            endpoint,
-            form,
-            cancellationToken);
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        try
+        {
+            uploadResult = await _cloudinary.UploadAsync(
+                uploadParameters,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
         {
             throw new InvalidOperationException(
-                $"Không thể tải ảnh lên Cloudinary ({(int)response.StatusCode}): {ReadCloudinaryError(responseBody)}");
+                "Không thể kết nối tới Cloudinary để tải ảnh.",
+                exception);
         }
 
-        using var document = JsonDocument.Parse(responseBody);
-        var root = document.RootElement;
-        var publicId = root.GetProperty("public_id").GetString();
-        var secureUrl = root.GetProperty("secure_url").GetString();
+        if (uploadResult.Error is not null)
+        {
+            throw new InvalidOperationException(
+                "Không thể tải ảnh lên Cloudinary: "
+                + uploadResult.Error.Message);
+        }
+
+        var publicId = uploadResult.PublicId;
+        var secureUrl = uploadResult.SecureUrl?.AbsoluteUri;
 
         if (string.IsNullOrWhiteSpace(publicId)
             || string.IsNullOrWhiteSpace(secureUrl))
         {
             throw new InvalidOperationException(
-                "Cloudinary không trả về public_id hoặc secure_url hợp lệ.");
+                "Cloudinary không trả về public_id "
+                + "hoặc secure_url hợp lệ.");
         }
 
-        return new StoredFile(publicId, secureUrl);
+        return new StoredFile(
+            StorageKey: publicId,
+            PublicUrl: secureUrl);
     }
 
     public async Task DeleteAsync(
-        string storageKey,
-        CancellationToken cancellationToken)
+    string storageKey,
+    CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(storageKey))
         {
             return;
         }
 
-        var timestamp = DateTimeOffset.UtcNow
-            .ToUnixTimeSeconds()
-            .ToString(CultureInfo.InvariantCulture);
-        var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["invalidate"] = "true",
-            ["public_id"] = storageKey,
-            ["timestamp"] = timestamp
-        };
+        cancellationToken.ThrowIfCancellationRequested();
 
-        using var form = new FormUrlEncodedContent(
-            new Dictionary<string, string>
-            {
-                ["api_key"] = _settings.ApiKey,
-                ["invalidate"] = "true",
-                ["public_id"] = storageKey,
-                ["timestamp"] = timestamp,
-                ["signature"] = CreateSignature(parameters)
-            });
+        DeletionResult deletionResult;
 
-        var endpoint =
-            $"https://api.cloudinary.com/v1_1/{Uri.EscapeDataString(_settings.CloudName)}/image/destroy";
-        using var response = await _httpClient.PostAsync(
-            endpoint,
-            form,
-            cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new InvalidOperationException(
-                $"Không thể xóa ảnh khỏi Cloudinary ({(int)response.StatusCode}): {ReadCloudinaryError(responseBody)}");
-        }
-    }
-
-    private string CreateSignature(
-        IReadOnlyDictionary<string, string> parameters)
-    {
-        var value = string.Join(
-            "&",
-            parameters.Select(parameter => $"{parameter.Key}={parameter.Value}"));
-        var bytes = SHA1.HashData(
-            Encoding.UTF8.GetBytes(value + _settings.ApiSecret));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    private static string ReadCloudinaryError(string responseBody)
-    {
         try
         {
-            using var document = JsonDocument.Parse(responseBody);
-            if (document.RootElement.TryGetProperty("error", out var error)
-                && error.TryGetProperty("message", out var message))
-            {
-                return message.GetString() ?? "Lỗi không xác định.";
-            }
-
-            return "Lỗi không xác định.";
+            deletionResult = await _cloudinary.DestroyAsync(
+                new DeletionParams(storageKey)
+                {
+                    Invalidate = true
+                });
         }
-        catch (JsonException)
+        catch (Exception exception)
         {
-            return "Lỗi không xác định.";
+            throw new InvalidOperationException(
+                "Không thể kết nối tới Cloudinary để xóa ảnh.",
+                exception);
         }
+
+        if (deletionResult.Error is not null)
+        {
+            throw new InvalidOperationException(
+                "Không thể xóa ảnh khỏi Cloudinary: "
+                + deletionResult.Error.Message);
+        }
+    }
+
+    private static string NormalizeFolder(string folder)
+    {
+        var normalized = string.IsNullOrWhiteSpace(folder)
+            ? "urban-issue"
+            : folder
+                .Trim()
+                .Replace('\\', '/')
+                .Trim('/');
+
+        while (normalized.Contains("//", StringComparison.Ordinal))
+        {
+            normalized = normalized.Replace(
+                "//",
+                "/",
+                StringComparison.Ordinal);
+        }
+
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "urban-issue"
+            : normalized;
     }
 
     private static bool HasExpectedImageSignature(
         ReadOnlySpan<byte> content,
         string extension)
     {
-        if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(
+                ".jpg",
+                StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(
+                ".jpeg",
+                StringComparison.OrdinalIgnoreCase))
         {
             return content.Length >= 3
                 && content[0] == 0xFF
@@ -201,11 +220,14 @@ public sealed class CloudinaryFileStorageService
                 && content[2] == 0xFF;
         }
 
-        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(
+                ".png",
+                StringComparison.OrdinalIgnoreCase))
         {
-            ReadOnlySpan<byte> png =
+            ReadOnlySpan<byte> pngSignature =
                 [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-            return content.StartsWith(png);
+
+            return content.StartsWith(pngSignature);
         }
 
         return content.Length >= 12

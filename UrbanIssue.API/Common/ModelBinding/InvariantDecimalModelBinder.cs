@@ -5,48 +5,55 @@ namespace UrbanIssue.API.Common.ModelBinding;
 
 public sealed class InvariantDecimalModelBinder : IModelBinder
 {
-    public Task BindModelAsync(
-        ModelBindingContext bindingContext)
+    public Task BindModelAsync(ModelBindingContext bindingContext)
     {
-        var valueProviderResult =
-            bindingContext.ValueProvider.GetValue(
-                bindingContext.ModelName);
+        ArgumentNullException.ThrowIfNull(bindingContext);
 
-        if (valueProviderResult == ValueProviderResult.None)
+        var valueResult = bindingContext.ValueProvider.GetValue(
+            bindingContext.ModelName);
+
+        if (valueResult == ValueProviderResult.None)
         {
             return Task.CompletedTask;
         }
 
         bindingContext.ModelState.SetModelValue(
             bindingContext.ModelName,
-            valueProviderResult);
+            valueResult);
 
-        var value =
-            valueProviderResult.FirstValue;
+        var rawValue = valueResult.FirstValue;
 
-        if (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(rawValue))
         {
+            if (bindingContext.ModelType == typeof(decimal?))
+            {
+                bindingContext.Result =
+                    ModelBindingResult.Success(null);
+            }
+
             return Task.CompletedTask;
         }
 
-        var parsed =
-            decimal.TryParse(
-                value,
-                NumberStyles.Float,
+        var numberStyles =
+            NumberStyles.AllowLeadingSign |
+            NumberStyles.AllowDecimalPoint;
+
+        if (decimal.TryParse(
+                rawValue,
+                numberStyles,
                 CultureInfo.InvariantCulture,
-                out var result);
-
-        if (!parsed)
+                out var parsedValue))
         {
-            bindingContext.ModelState.TryAddModelError(
-                bindingContext.ModelName,
-                $"{bindingContext.ModelName} không phải là số hợp lệ.");
+            bindingContext.Result =
+                ModelBindingResult.Success(parsedValue);
 
             return Task.CompletedTask;
         }
 
-        bindingContext.Result =
-            ModelBindingResult.Success(result);
+        bindingContext.ModelState.TryAddModelError(
+            bindingContext.ModelName,
+            $"Giá trị '{rawValue}' không phải số thập phân hợp lệ. "
+            + "Hãy dùng dấu chấm, ví dụ 21.0285.");
 
         return Task.CompletedTask;
     }
