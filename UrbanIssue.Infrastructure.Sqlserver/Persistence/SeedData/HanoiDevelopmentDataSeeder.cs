@@ -14,6 +14,12 @@ public sealed class HanoiDevelopmentDataSeeder
     private const string DemoPassword =
         "Password@123";
 
+    private const string HanoiRootName =
+        "Thành phố Hà Nội";
+
+    private const string HanoiRootCode =
+        "HN-CITY";
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IPasswordHasher _passwordHasher;
     private readonly DefaultSlaSettings _defaultSlaSettings;
@@ -113,11 +119,9 @@ public sealed class HanoiDevelopmentDataSeeder
 
         foreach (var seed in CategorySeeds)
         {
-            if (categoriesByName.TryGetValue(
-                    seed.Name,
-                    out var existingCategory))
+            if (categoriesByName.ContainsKey(
+                    seed.Name))
             {
-                existingCategory.IsOther = seed.IsOther;
                 continue;
             }
 
@@ -126,7 +130,6 @@ public sealed class HanoiDevelopmentDataSeeder
                 Name = seed.Name,
                 Description = seed.Description,
                 IsActive = true,
-                IsOther = seed.IsOther,
                 CreatedAt = currentTime,
                 UpdatedAt = null
             };
@@ -234,18 +237,16 @@ public sealed class HanoiDevelopmentDataSeeder
             await _dbContext.Areas
                 .ToListAsync(cancellationToken);
 
-        /*
-         * Dictionary được trả về theo Code để phân biệt rõ:
-         *
-         * Quận Ba Đình  -> HN-D-BA-DINH
-         * Phường Ba Đình -> HN-W-BA-DINH
-         */
         var areasByCode =
             existingAreas
                 .Where(area =>
                     !string.IsNullOrWhiteSpace(area.Code))
-                .ToDictionary(
+                .GroupBy(
                     area => area.Code!,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First(),
                     StringComparer.OrdinalIgnoreCase);
 
         var areasByName =
@@ -259,111 +260,129 @@ public sealed class HanoiDevelopmentDataSeeder
                     StringComparer.OrdinalIgnoreCase);
 
         /*
-         * Bước 1: tạo các Quận.
-         * Quận là node gốc nên ParentAreaId luôn bằng null.
+         * Từ 01/07/2025, Hà Nội vận hành mô hình chính quyền
+         * địa phương hai cấp. Ứng dụng vẫn cần ParentAreaId,
+         * vì vậy dùng "Thành phố Hà Nội" làm node gốc và
+         * 126 Phường/Xã chính thức làm node con.
          */
-        foreach (var districtSeed in DistrictSeeds)
+        if (!areasByCode.TryGetValue(
+                HanoiRootCode,
+                out var hanoi)
+            && !areasByName.TryGetValue(
+                HanoiRootName,
+                out hanoi))
         {
-            if (!areasByCode.TryGetValue(
-                    districtSeed.Code,
-                    out var district)
-                && !areasByName.TryGetValue(
-                    districtSeed.Name,
-                    out district))
+            hanoi = new Area
             {
-                district = new Area
+                Name = HanoiRootName,
+                Code = HanoiRootCode,
+                ParentAreaId = null,
+                IsActive = true,
+                CreatedAt = currentTime,
+                UpdatedAt = null
+            };
+
+            _dbContext.Areas.Add(hanoi);
+        }
+        else
+        {
+            hanoi.Name = HanoiRootName;
+            hanoi.Code = HanoiRootCode;
+            hanoi.ParentAreaId = null;
+            hanoi.IsActive = true;
+            hanoi.UpdatedAt = currentTime;
+        }
+
+        areasByCode[HanoiRootCode] = hanoi;
+        areasByName[HanoiRootName] = hanoi;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        foreach (var unitSeed in AdministrativeUnitSeeds)
+        {
+            var firstSpace =
+                unitSeed.Name.IndexOf(' ');
+
+            var legacyName =
+                firstSpace >= 0
+                    ? unitSeed.Name[(firstSpace + 1)..]
+                    : unitSeed.Name;
+
+            if (!areasByCode.TryGetValue(
+                    unitSeed.Code,
+                    out var unit)
+                && !areasByName.TryGetValue(
+                    unitSeed.Name,
+                    out unit)
+                && !areasByName.TryGetValue(
+                    legacyName,
+                    out unit))
+            {
+                unit = new Area
                 {
-                    Name = districtSeed.Name,
-                    Code = districtSeed.Code,
-                    ParentAreaId = null,
+                    Name = unitSeed.Name,
+                    Code = unitSeed.Code,
+                    ParentAreaId = hanoi.Id,
                     IsActive = true,
                     CreatedAt = currentTime,
                     UpdatedAt = null
                 };
 
-                _dbContext.Areas.Add(district);
+                _dbContext.Areas.Add(unit);
             }
             else
             {
-                district.Name = districtSeed.Name;
-                district.Code = districtSeed.Code;
-                district.ParentAreaId = null;
-                district.IsActive = true;
-                district.UpdatedAt = currentTime;
+                unit.Name = unitSeed.Name;
+                unit.Code = unitSeed.Code;
+                unit.ParentAreaId = hanoi.Id;
+                unit.IsActive = true;
+                unit.UpdatedAt = currentTime;
             }
 
-            areasByCode[districtSeed.Code] =
-                district;
-
-            areasByName[districtSeed.Name] =
-                district;
+            areasByCode[unitSeed.Code] = unit;
+            areasByName[unitSeed.Name] = unit;
         }
 
-        /*
-         * Save trước để các Quận mới có Id,
-         * sau đó mới gán ParentAreaId cho Phường.
-         */
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
         /*
-         * Bước 2: tạo các Phường và gán Quận cha.
-         *
-         * Seeder cũng nhận diện dữ liệu cũ như "Ba Đình",
-         * "Ngọc Hà"... để chuyển thành node Phường thay vì
-         * tạo bản ghi trùng khi seeder phiên bản cũ đã chạy.
+         * Vô hiệu hóa dữ liệu seed cũ không còn thuộc danh sách
+         * 126 đơn vị hiện hành. Không xóa để giữ khóa ngoại của
+         * Report, RoutingRule và dữ liệu demo đã tồn tại.
          */
-        foreach (var districtSeed in DistrictSeeds)
+        var currentAreaIds =
+            AdministrativeUnitSeeds
+                .Select(seed =>
+                    areasByCode[seed.Code].Id)
+                .Append(hanoi.Id)
+                .ToHashSet();
+
+        foreach (var area in existingAreas)
         {
-            var district =
-                areasByCode[districtSeed.Code];
+            var isOldSeedArea =
+                area.Code?.StartsWith(
+                    "HN-D-",
+                    StringComparison.OrdinalIgnoreCase)
+                    == true
+                || area.Code?.StartsWith(
+                    "HN-W-",
+                    StringComparison.OrdinalIgnoreCase)
+                    == true
+                || area.Code?.StartsWith(
+                    "HN-C-",
+                    StringComparison.OrdinalIgnoreCase)
+                    == true;
 
-            foreach (var wardSeed in districtSeed.Wards)
+            if (!isOldSeedArea
+                || currentAreaIds.Contains(area.Id))
             {
-                var legacyWardName =
-                    wardSeed.Name.StartsWith(
-                        "Phường ",
-                        StringComparison.OrdinalIgnoreCase)
-                        ? wardSeed.Name["Phường ".Length..]
-                        : wardSeed.Name;
-
-                if (!areasByCode.TryGetValue(
-                        wardSeed.Code,
-                        out var ward)
-                    && !areasByName.TryGetValue(
-                        wardSeed.Name,
-                        out ward)
-                    && !areasByName.TryGetValue(
-                        legacyWardName,
-                        out ward))
-                {
-                    ward = new Area
-                    {
-                        Name = wardSeed.Name,
-                        Code = wardSeed.Code,
-                        ParentAreaId = district.Id,
-                        IsActive = true,
-                        CreatedAt = currentTime,
-                        UpdatedAt = null
-                    };
-
-                    _dbContext.Areas.Add(ward);
-                }
-                else
-                {
-                    ward.Name = wardSeed.Name;
-                    ward.Code = wardSeed.Code;
-                    ward.ParentAreaId = district.Id;
-                    ward.IsActive = true;
-                    ward.UpdatedAt = currentTime;
-                }
-
-                areasByCode[wardSeed.Code] =
-                    ward;
-
-                areasByName[wardSeed.Name] =
-                    ward;
+                continue;
             }
+
+            area.IsActive = false;
+            area.UpdatedAt = currentTime;
         }
 
         await _dbContext.SaveChangesAsync(
@@ -426,35 +445,41 @@ public sealed class HanoiDevelopmentDataSeeder
     {
         var existingRules =
             await _dbContext.RoutingRules
-                .AsNoTracking()
-                .Select(rule => new
-                {
-                    rule.CategoryId,
-                    rule.AreaId,
-                    rule.DepartmentId
-                })
                 .ToListAsync(cancellationToken);
 
-        var existingKeys =
-            existingRules
-                .Select(rule => (
-                    rule.CategoryId,
-                    rule.AreaId,
-                    rule.DepartmentId))
+        var currentAreaIds =
+            AdministrativeUnitSeeds
+                .Select(seed =>
+                    areas[seed.Code].Id)
                 .ToHashSet();
 
         /*
-         * Routing Rule chỉ được tạo cho Phường.
-         * Quận chỉ đóng vai trò node cha để frontend
-         * hiển thị và lọc cây khu vực.
+         * Rule của khu vực seed cũ được giữ lại để bảo toàn lịch sử
+         * nhưng không còn tham gia định tuyến.
          */
-        foreach (var categorySeed in CategorySeeds)
+        foreach (var rule in existingRules)
         {
-            if (categorySeed.DepartmentName is null)
+            if (currentAreaIds.Contains(rule.AreaId))
             {
                 continue;
             }
 
+            rule.IsActive = false;
+            rule.UpdatedAt = currentTime;
+        }
+
+        var rulesByKey =
+            existingRules
+                .GroupBy(rule => (
+                    rule.CategoryId,
+                    rule.AreaId,
+                    rule.DepartmentId))
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First());
+
+        foreach (var categorySeed in CategorySeeds)
+        {
             var category =
                 categories[categorySeed.Name];
 
@@ -462,37 +487,41 @@ public sealed class HanoiDevelopmentDataSeeder
                 departments[
                     categorySeed.DepartmentName];
 
-            foreach (var districtSeed in DistrictSeeds)
+            foreach (var unitSeed in AdministrativeUnitSeeds)
             {
-                foreach (var wardSeed in districtSeed.Wards)
+                var area = areas[unitSeed.Code];
+
+                var key = (
+                    CategoryId: category.Id,
+                    AreaId: area.Id,
+                    DepartmentId: department.Id);
+
+                if (rulesByKey.TryGetValue(
+                        key,
+                        out var existingRule))
                 {
-                    var area =
-                        areas[wardSeed.Code];
+                    existingRule.PriorityOrder = 1;
+                    existingRule.IsActive = true;
+                    existingRule.UpdatedAt = currentTime;
 
-                    var key = (
-                        CategoryId: category.Id,
-                        AreaId: area.Id,
-                        DepartmentId: department.Id);
-
-                    if (existingKeys.Contains(key))
-                    {
-                        continue;
-                    }
-
-                    _dbContext.RoutingRules.Add(
-                        new RoutingRule
-                        {
-                            CategoryId = category.Id,
-                            AreaId = area.Id,
-                            DepartmentId = department.Id,
-                            PriorityOrder = 1,
-                            IsActive = true,
-                            CreatedAt = currentTime,
-                            UpdatedAt = null
-                        });
-
-                    existingKeys.Add(key);
+                    continue;
                 }
+
+                var routingRule = new RoutingRule
+                {
+                    CategoryId = category.Id,
+                    AreaId = area.Id,
+                    DepartmentId = department.Id,
+                    PriorityOrder = 1,
+                    IsActive = true,
+                    CreatedAt = currentTime,
+                    UpdatedAt = null
+                };
+
+                _dbContext.RoutingRules.Add(
+                    routingRule);
+
+                rulesByKey[key] = routingRule;
             }
         }
 
@@ -576,7 +605,6 @@ public sealed class HanoiDevelopmentDataSeeder
                 RoleId = roles[seed.RoleName],
                 DepartmentId = departmentId,
                 IsActive = true,
-                EmailVerifiedAt = currentTime,
                 CreatedAt = currentTime,
                 UpdatedAt = null
             };
@@ -693,153 +721,138 @@ public sealed class HanoiDevelopmentDataSeeder
                 "Hạ tầng viễn thông",
                 "Cáp võng thấp, tủ kỹ thuật hư hỏng "
                 + "hoặc thiết bị đô thị thông minh gặp lỗi.",
-                "Trung tâm Hạ tầng số Hà Nội"),
-
-            new(
-                "Khác / Tôi không chắc",
-                "Sử dụng khi người gửi chưa xác định được loại sự cố. "
-                + "Admin sẽ phân loại trước khi giao đơn vị xử lý.",
-                null,
-                true)
+                "Trung tâm Hạ tầng số Hà Nội")
         ];
 
-    private static readonly DistrictSeed[]
-        DistrictSeeds =
+    private static readonly AdministrativeUnitSeed[]
+        AdministrativeUnitSeeds =
         [
-            new(
-                "Quận Ba Đình",
-                "HN-D-BA-DINH",
-                [
-                    new("Phường Ba Đình", "HN-W-BA-DINH"),
-                    new("Phường Ngọc Hà", "HN-W-NGOC-HA"),
-                    new("Phường Giảng Võ", "HN-W-GIANG-VO")
-                ]),
-
-            new(
-                "Quận Hoàn Kiếm",
-                "HN-D-HOAN-KIEM",
-                [
-                    new("Phường Hoàn Kiếm", "HN-W-HOAN-KIEM"),
-                    new("Phường Cửa Nam", "HN-W-CUA-NAM")
-                ]),
-
-            new(
-                "Quận Hai Bà Trưng",
-                "HN-D-HAI-BA-TRUNG",
-                [
-                    new(
-                        "Phường Hai Bà Trưng",
-                        "HN-W-HAI-BA-TRUNG"),
-
-                    new("Phường Bạch Mai", "HN-W-BACH-MAI"),
-                    new("Phường Vĩnh Tuy", "HN-W-VINH-TUY")
-                ]),
-
-            new(
-                "Quận Đống Đa",
-                "HN-D-DONG-DA",
-                [
-                    new("Phường Đống Đa", "HN-W-DONG-DA"),
-                    new("Phường Láng", "HN-W-LANG"),
-                    new("Phường Ô Chợ Dừa", "HN-W-O-CHO-DUA"),
-                    new("Phường Kim Liên", "HN-W-KIM-LIEN"),
-
-                    new(
-                        "Phường Văn Miếu - Quốc Tử Giám",
-                        "HN-W-VAN-MIEU-QUOC-TU-GIAM")
-                ]),
-
-            new(
-                "Quận Thanh Xuân",
-                "HN-D-THANH-XUAN",
-                [
-                    new(
-                        "Phường Thanh Xuân",
-                        "HN-W-THANH-XUAN"),
-
-                    new(
-                        "Phường Khương Đình",
-                        "HN-W-KHUONG-DINH"),
-
-                    new(
-                        "Phường Phương Liệt",
-                        "HN-W-PHUONG-LIET")
-                ]),
-
-            new(
-                "Quận Cầu Giấy",
-                "HN-D-CAU-GIAY",
-                [
-                    new("Phường Cầu Giấy", "HN-W-CAU-GIAY"),
-                    new("Phường Nghĩa Đô", "HN-W-NGHIA-DO"),
-                    new("Phường Yên Hòa", "HN-W-YEN-HOA")
-                ]),
-
-            new(
-                "Quận Tây Hồ",
-                "HN-D-TAY-HO",
-                [
-                    new("Phường Tây Hồ", "HN-W-TAY-HO"),
-                    new("Phường Hồng Hà", "HN-W-HONG-HA"),
-                    new("Phường Phú Thượng", "HN-W-PHU-THUONG")
-                ]),
-
-            new(
-                "Quận Hoàng Mai",
-                "HN-D-HOANG-MAI",
-                [
-                    new("Phường Định Công", "HN-W-DINH-CONG"),
-                    new("Phường Hoàng Liệt", "HN-W-HOANG-LIET"),
-                    new("Phường Tương Mai", "HN-W-TUONG-MAI"),
-                    new("Phường Hoàng Mai", "HN-W-HOANG-MAI"),
-                    new("Phường Yên Sở", "HN-W-YEN-SO"),
-                    new("Phường Vĩnh Hưng", "HN-W-VINH-HUNG"),
-                    new("Phường Lĩnh Nam", "HN-W-LINH-NAM")
-                ]),
-
-            new(
-                "Quận Long Biên",
-                "HN-D-LONG-BIEN",
-                [
-                    new("Phường Việt Hưng", "HN-W-VIET-HUNG"),
-                    new("Phường Bồ Đề", "HN-W-BO-DE"),
-                    new("Phường Long Biên", "HN-W-LONG-BIEN"),
-                    new("Phường Phúc Lợi", "HN-W-PHUC-LOI")
-                ]),
-
-            new(
-                "Quận Hà Đông",
-                "HN-D-HA-DONG",
-                [
-                    new("Phường Hà Đông", "HN-W-HA-DONG"),
-                    new("Phường Dương Nội", "HN-W-DUONG-NOI"),
-                    new("Phường Yên Nghĩa", "HN-W-YEN-NGHIA"),
-                    new("Phường Kiến Hưng", "HN-W-KIEN-HUNG"),
-                    new("Phường Phú Lương", "HN-W-PHU-LUONG")
-                ]),
-
-            new(
-                "Quận Bắc Từ Liêm",
-                "HN-D-BAC-TU-LIEM",
-                [
-                    new("Phường Tây Tựu", "HN-W-TAY-TUU"),
-                    new("Phường Phú Diễn", "HN-W-PHU-DIEN"),
-                    new("Phường Xuân Đỉnh", "HN-W-XUAN-DINH"),
-                    new("Phường Đông Ngạc", "HN-W-DONG-NGAC"),
-                    new("Phường Thượng Cát", "HN-W-THUONG-CAT")
-                ]),
-
-            new(
-                "Quận Nam Từ Liêm",
-                "HN-D-NAM-TU-LIEM",
-                [
-                    new("Phường Từ Liêm", "HN-W-TU-LIEM"),
-                    new("Phường Tây Mỗ", "HN-W-TAY-MO"),
-                    new("Phường Đại Mỗ", "HN-W-DAI-MO"),
-                    new(
-                        "Phường Xuân Phương",
-                        "HN-W-XUAN-PHUONG")
-                ])
+            new("Phường Hoàn Kiếm", "HN-W-HOAN-KIEM"),
+            new("Phường Cửa Nam", "HN-W-CUA-NAM"),
+            new("Phường Ba Đình", "HN-W-BA-DINH"),
+            new("Phường Ngọc Hà", "HN-W-NGOC-HA"),
+            new("Phường Giảng Võ", "HN-W-GIANG-VO"),
+            new("Phường Hai Bà Trưng", "HN-W-HAI-BA-TRUNG"),
+            new("Phường Vĩnh Tuy", "HN-W-VINH-TUY"),
+            new("Phường Bạch Mai", "HN-W-BACH-MAI"),
+            new("Phường Đống Đa", "HN-W-DONG-DA"),
+            new("Phường Kim Liên", "HN-W-KIM-LIEN"),
+            new("Phường Văn Miếu - Quốc Tử Giám", "HN-W-VAN-MIEU-QUOC-TU-GIAM"),
+            new("Phường Láng", "HN-W-LANG"),
+            new("Phường Ô Chợ Dừa", "HN-W-O-CHO-DUA"),
+            new("Phường Hồng Hà", "HN-W-HONG-HA"),
+            new("Phường Lĩnh Nam", "HN-W-LINH-NAM"),
+            new("Phường Hoàng Mai", "HN-W-HOANG-MAI"),
+            new("Phường Vĩnh Hưng", "HN-W-VINH-HUNG"),
+            new("Phường Tương Mai", "HN-W-TUONG-MAI"),
+            new("Phường Định Công", "HN-W-DINH-CONG"),
+            new("Phường Hoàng Liệt", "HN-W-HOANG-LIET"),
+            new("Phường Yên Sở", "HN-W-YEN-SO"),
+            new("Phường Thanh Xuân", "HN-W-THANH-XUAN"),
+            new("Phường Khương Đình", "HN-W-KHUONG-DINH"),
+            new("Phường Phương Liệt", "HN-W-PHUONG-LIET"),
+            new("Phường Cầu Giấy", "HN-W-CAU-GIAY"),
+            new("Phường Nghĩa Đô", "HN-W-NGHIA-DO"),
+            new("Phường Yên Hòa", "HN-W-YEN-HOA"),
+            new("Phường Tây Hồ", "HN-W-TAY-HO"),
+            new("Phường Phú Thượng", "HN-W-PHU-THUONG"),
+            new("Phường Tây Tựu", "HN-W-TAY-TUU"),
+            new("Phường Phú Diễn", "HN-W-PHU-DIEN"),
+            new("Phường Xuân Đỉnh", "HN-W-XUAN-DINH"),
+            new("Phường Đông Ngạc", "HN-W-DONG-NGAC"),
+            new("Phường Thượng Cát", "HN-W-THUONG-CAT"),
+            new("Phường Từ Liêm", "HN-W-TU-LIEM"),
+            new("Phường Xuân Phương", "HN-W-XUAN-PHUONG"),
+            new("Phường Tây Mỗ", "HN-W-TAY-MO"),
+            new("Phường Đại Mỗ", "HN-W-DAI-MO"),
+            new("Phường Long Biên", "HN-W-LONG-BIEN"),
+            new("Phường Bồ Đề", "HN-W-BO-DE"),
+            new("Phường Việt Hưng", "HN-W-VIET-HUNG"),
+            new("Phường Phúc Lợi", "HN-W-PHUC-LOI"),
+            new("Phường Hà Đông", "HN-W-HA-DONG"),
+            new("Phường Dương Nội", "HN-W-DUONG-NOI"),
+            new("Phường Yên Nghĩa", "HN-W-YEN-NGHIA"),
+            new("Phường Phú Lương", "HN-W-PHU-LUONG"),
+            new("Phường Kiến Hưng", "HN-W-KIEN-HUNG"),
+            new("Phường Thanh Liệt", "HN-W-THANH-LIET"),
+            new("Phường Chương Mỹ", "HN-W-CHUONG-MY"),
+            new("Phường Sơn Tây", "HN-W-SON-TAY"),
+            new("Phường Tùng Thiện", "HN-W-TUNG-THIEN"),
+            new("Xã Thanh Trì", "HN-C-THANH-TRI"),
+            new("Xã Đại Thanh", "HN-C-DAI-THANH"),
+            new("Xã Nam Phù", "HN-C-NAM-PHU"),
+            new("Xã Ngọc Hồi", "HN-C-NGOC-HOI"),
+            new("Xã Thượng Phúc", "HN-C-THUONG-PHUC"),
+            new("Xã Thường Tín", "HN-C-THUONG-TIN"),
+            new("Xã Chương Dương", "HN-C-CHUONG-DUONG"),
+            new("Xã Hồng Vân", "HN-C-HONG-VAN"),
+            new("Xã Phú Xuyên", "HN-C-PHU-XUYEN"),
+            new("Xã Phượng Dực", "HN-C-PHUONG-DUC"),
+            new("Xã Chuyên Mỹ", "HN-C-CHUYEN-MY"),
+            new("Xã Đại Xuyên", "HN-C-DAI-XUYEN"),
+            new("Xã Thanh Oai", "HN-C-THANH-OAI"),
+            new("Xã Bình Minh", "HN-C-BINH-MINH"),
+            new("Xã Tam Hưng", "HN-C-TAM-HUNG"),
+            new("Xã Dân Hòa", "HN-C-DAN-HOA"),
+            new("Xã Vân Đình", "HN-C-VAN-DINH"),
+            new("Xã Ứng Thiên", "HN-C-UNG-THIEN"),
+            new("Xã Hòa Xá", "HN-C-HOA-XA"),
+            new("Xã Ứng Hòa", "HN-C-UNG-HOA"),
+            new("Xã Mỹ Đức", "HN-C-MY-DUC"),
+            new("Xã Hồng Sơn", "HN-C-HONG-SON"),
+            new("Xã Phúc Sơn", "HN-C-PHUC-SON"),
+            new("Xã Hương Sơn", "HN-C-HUONG-SON"),
+            new("Xã Phú Nghĩa", "HN-C-PHU-NGHIA"),
+            new("Xã Xuân Mai", "HN-C-XUAN-MAI"),
+            new("Xã Trần Phú", "HN-C-TRAN-PHU"),
+            new("Xã Hòa Phú", "HN-C-HOA-PHU"),
+            new("Xã Quảng Bị", "HN-C-QUANG-BI"),
+            new("Xã Minh Châu", "HN-C-MINH-CHAU"),
+            new("Xã Quảng Oai", "HN-C-QUANG-OAI"),
+            new("Xã Vật Lại", "HN-C-VAT-LAI"),
+            new("Xã Cổ Đô", "HN-C-CO-DO"),
+            new("Xã Bất Bạt", "HN-C-BAT-BAT"),
+            new("Xã Suối Hai", "HN-C-SUOI-HAI"),
+            new("Xã Ba Vì", "HN-C-BA-VI"),
+            new("Xã Yên Bài", "HN-C-YEN-BAI"),
+            new("Xã Đoài Phương", "HN-C-DOAI-PHUONG"),
+            new("Xã Phúc Thọ", "HN-C-PHUC-THO"),
+            new("Xã Phúc Lộc", "HN-C-PHUC-LOC"),
+            new("Xã Hát Môn", "HN-C-HAT-MON"),
+            new("Xã Thạch Thất", "HN-C-THACH-THAT"),
+            new("Xã Hạ Bằng", "HN-C-HA-BANG"),
+            new("Xã Tây Phương", "HN-C-TAY-PHUONG"),
+            new("Xã Hòa Lạc", "HN-C-HOA-LAC"),
+            new("Xã Yên Xuân", "HN-C-YEN-XUAN"),
+            new("Xã Quốc Oai", "HN-C-QUOC-OAI"),
+            new("Xã Hưng Đạo", "HN-C-HUNG-DAO"),
+            new("Xã Kiều Phú", "HN-C-KIEU-PHU"),
+            new("Xã Phú Cát", "HN-C-PHU-CAT"),
+            new("Xã Hoài Đức", "HN-C-HOAI-DUC"),
+            new("Xã Dương Hòa", "HN-C-DUONG-HOA"),
+            new("Xã Sơn Đồng", "HN-C-SON-DONG"),
+            new("Xã An Khánh", "HN-C-AN-KHANH"),
+            new("Xã Đan Phượng", "HN-C-DAN-PHUONG"),
+            new("Xã Ô Diên", "HN-C-O-DIEN"),
+            new("Xã Liên Minh", "HN-C-LIEN-MINH"),
+            new("Xã Gia Lâm", "HN-C-GIA-LAM"),
+            new("Xã Thuận An", "HN-C-THUAN-AN"),
+            new("Xã Bát Tràng", "HN-C-BAT-TRANG"),
+            new("Xã Phù Đổng", "HN-C-PHU-DONG"),
+            new("Xã Thư Lâm", "HN-C-THU-LAM"),
+            new("Xã Đông Anh", "HN-C-DONG-ANH"),
+            new("Xã Phúc Thịnh", "HN-C-PHUC-THINH"),
+            new("Xã Thiên Lộc", "HN-C-THIEN-LOC"),
+            new("Xã Vĩnh Thanh", "HN-C-VINH-THANH"),
+            new("Xã Mê Linh", "HN-C-ME-LINH"),
+            new("Xã Yên Lãng", "HN-C-YEN-LANG"),
+            new("Xã Tiến Thắng", "HN-C-TIEN-THANG"),
+            new("Xã Quang Minh", "HN-C-QUANG-MINH"),
+            new("Xã Sóc Sơn", "HN-C-SOC-SON"),
+            new("Xã Đa Phúc", "HN-C-DA-PHUC"),
+            new("Xã Nội Bài", "HN-C-NOI-BAI"),
+            new("Xã Trung Giã", "HN-C-TRUNG-GIA"),
+            new("Xã Kim Anh", "HN-C-KIM-ANH")
         ];
 
     private static readonly UserSeed[]
@@ -926,15 +939,9 @@ public sealed class HanoiDevelopmentDataSeeder
     private sealed record CategorySeed(
         string Name,
         string Description,
-        string? DepartmentName,
-        bool IsOther = false);
+        string DepartmentName);
 
-    private sealed record DistrictSeed(
-        string Name,
-        string Code,
-        IReadOnlyList<WardSeed> Wards);
-
-    private sealed record WardSeed(
+    private sealed record AdministrativeUnitSeed(
         string Name,
         string Code);
 
