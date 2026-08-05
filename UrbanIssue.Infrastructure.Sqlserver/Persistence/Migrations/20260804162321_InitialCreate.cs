@@ -13,6 +13,10 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateSequence(
+                name: "ReportNumbers",
+                startValue: 100001L);
+
             migrationBuilder.CreateTable(
                 name: "Areas",
                 columns: table => new
@@ -23,6 +27,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     ParentAreaId = table.Column<int>(type: "int", nullable: true),
                     Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    BoundaryGeoJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -46,6 +51,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    IsOther = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -158,6 +164,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     RoleId = table.Column<int>(type: "int", nullable: false),
                     DepartmentId = table.Column<int>(type: "int", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    EmailVerifiedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EmailVerificationTokenHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    EmailVerificationTokenExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PasswordResetTokenHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    PasswordResetTokenExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -230,13 +241,17 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ReportNumber = table.Column<long>(type: "bigint", nullable: false, defaultValueSql: "NEXT VALUE FOR [ReportNumbers]"),
+                    ReportCode = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true, computedColumnSql: "('UI-' + CONVERT([varchar](20),[ReportNumber]))", stored: true),
                     CitizenId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CategoryId = table.Column<int>(type: "int", nullable: false),
                     AreaId = table.Column<int>(type: "int", nullable: false),
                     DepartmentId = table.Column<int>(type: "int", nullable: true),
                     AssignedStaffId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     SLAConfigId = table.Column<int>(type: "int", nullable: true),
+                    Title = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    OtherCategoryText = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
                     AddressText = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Latitude = table.Column<decimal>(type: "decimal(9,6)", precision: 9, scale: 6, nullable: false),
                     Longitude = table.Column<decimal>(type: "decimal(9,6)", precision: 9, scale: 6, nullable: false),
@@ -255,6 +270,8 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     AcceptedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ResolvedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ClosedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancelledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     RejectedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     RejectedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     RejectedReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
@@ -348,6 +365,44 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Complaints",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CitizenId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false, defaultValue: "Pending"),
+                    AdminDecisionReason = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    ResolvedByAdminId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ResolvedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Complaints", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Complaints_Reports_ReportId",
+                        column: x => x.ReportId,
+                        principalTable: "Reports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Complaints_Users_CitizenId",
+                        column: x => x.CitizenId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Complaints_Users_ResolvedByAdminId",
+                        column: x => x.ResolvedByAdminId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Notifications",
                 columns: table => new
                 {
@@ -410,6 +465,7 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     UpdatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     OldStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     NewStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    EventType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false, defaultValue: "StatusChanged"),
                     Note = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -455,6 +511,27 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ComplaintImages",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ComplaintId = table.Column<int>(type: "int", nullable: false),
+                    ImageUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    UploadedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ComplaintImages", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ComplaintImages_Complaints_ComplaintId",
+                        column: x => x.ComplaintId,
+                        principalTable: "Complaints",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -510,6 +587,13 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 columns: new[] { "UserId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Categories_IsOther",
+                table: "Categories",
+                column: "IsOther",
+                unique: true,
+                filter: "[IsOther] = 1");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Categories_Name",
                 table: "Categories",
                 column: "Name",
@@ -524,6 +608,32 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 name: "IX_Comments_UserId",
                 table: "Comments",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ComplaintImages_ComplaintId",
+                table: "ComplaintImages",
+                column: "ComplaintId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Complaints_CitizenId",
+                table: "Complaints",
+                column: "CitizenId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Complaints_ReportId",
+                table: "Complaints",
+                column: "ReportId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Complaints_ResolvedByAdminId",
+                table: "Complaints",
+                column: "ResolvedByAdminId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Complaints_Status_CreatedAt",
+                table: "Complaints",
+                columns: new[] { "Status", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Departments_Name",
@@ -611,6 +721,18 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 name: "IX_Reports_ReopenedByUserId",
                 table: "Reports",
                 column: "ReopenedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_ReportCode",
+                table: "Reports",
+                column: "ReportCode",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Reports_ReportNumber",
+                table: "Reports",
+                column: "ReportNumber",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Reports_RequiresManualAssignment_CreatedAt",
@@ -733,6 +855,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                 name: "Comments");
 
             migrationBuilder.DropTable(
+                name: "ComplaintImages");
+
+            migrationBuilder.DropTable(
                 name: "Notifications");
 
             migrationBuilder.DropTable(
@@ -749,6 +874,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "Upvotes");
+
+            migrationBuilder.DropTable(
+                name: "Complaints");
 
             migrationBuilder.DropTable(
                 name: "StatusUpdates");
@@ -773,6 +901,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "Roles");
+
+            migrationBuilder.DropSequence(
+                name: "ReportNumbers");
         }
     }
 }

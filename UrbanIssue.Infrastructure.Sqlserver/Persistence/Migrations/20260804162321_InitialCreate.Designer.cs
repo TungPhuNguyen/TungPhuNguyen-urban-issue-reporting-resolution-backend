@@ -12,7 +12,7 @@ using UrbanIssue.Infrastructure.Sqlserver.Persistence;
 namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260730194941_InitialCreate")]
+    [Migration("20260804162321_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -25,6 +25,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence("ReportNumbers")
+                .StartsAt(100001L);
+
             modelBuilder.Entity("UrbanIssue.Domain.Entities.Area", b =>
                 {
                     b.Property<int>("Id")
@@ -32,6 +35,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BoundaryGeoJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Code")
                         .HasMaxLength(50)
@@ -129,6 +135,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsOther")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -138,6 +149,10 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsOther")
+                        .IsUnique()
+                        .HasFilter("[IsOther] = 1");
 
                     b.HasIndex("Name")
                         .IsUnique();
@@ -177,6 +192,85 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.HasIndex("ReportId", "CreatedAt");
 
                     b.ToTable("Comments", (string)null);
+                });
+
+            modelBuilder.Entity("UrbanIssue.Domain.Entities.Complaint", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminDecisionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("CitizenId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ResolvedByAdminId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CitizenId");
+
+                    b.HasIndex("ReportId")
+                        .IsUnique();
+
+                    b.HasIndex("ResolvedByAdminId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("Complaints", (string)null);
+                });
+
+            modelBuilder.Entity("UrbanIssue.Domain.Entities.ComplaintImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ComplaintId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComplaintId");
+
+                    b.ToTable("ComplaintImages", (string)null);
                 });
 
             modelBuilder.Entity("UrbanIssue.Domain.Entities.Department", b =>
@@ -321,6 +415,9 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Property<Guid?>("AssignedStaffId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
@@ -371,6 +468,10 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasPrecision(9, 6)
                         .HasColumnType("decimal(9,6)");
 
+                    b.Property<string>("OtherCategoryText")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
                     b.Property<string>("Priority")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -395,6 +496,17 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Property<Guid?>("ReopenedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ReportCode")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasComputedColumnSql("('UI-' + CONVERT([varchar](20),[ReportNumber]))", true);
+
+                    b.Property<long>("ReportNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValueSql("NEXT VALUE FOR [ReportNumbers]");
+
                     b.Property<bool>("RequiresManualAssignment")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -402,6 +514,12 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.Property<DateTime?>("ResolvedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateTime?>("SLABreachedNotifiedAt")
                         .HasColumnType("datetime2");
@@ -422,6 +540,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("New");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -438,6 +561,12 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("ReopenedByUserId");
+
+                    b.HasIndex("ReportCode")
+                        .IsUnique();
+
+                    b.HasIndex("ReportNumber")
+                        .IsUnique();
 
                     b.HasIndex("ResolvedAt");
 
@@ -628,6 +757,13 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("StatusChanged");
+
                     b.Property<string>("NewStatus")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -723,6 +859,16 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
+                    b.Property<DateTime?>("EmailVerificationTokenExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EmailVerificationTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -737,6 +883,13 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PasswordResetTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -797,6 +950,43 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Navigation("Report");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UrbanIssue.Domain.Entities.Complaint", b =>
+                {
+                    b.HasOne("UrbanIssue.Domain.Entities.User", "Citizen")
+                        .WithMany("SubmittedComplaints")
+                        .HasForeignKey("CitizenId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UrbanIssue.Domain.Entities.Report", "Report")
+                        .WithMany("Complaints")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UrbanIssue.Domain.Entities.User", "ResolvedByAdmin")
+                        .WithMany("ResolvedComplaints")
+                        .HasForeignKey("ResolvedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Citizen");
+
+                    b.Navigation("Report");
+
+                    b.Navigation("ResolvedByAdmin");
+                });
+
+            modelBuilder.Entity("UrbanIssue.Domain.Entities.ComplaintImage", b =>
+                {
+                    b.HasOne("UrbanIssue.Domain.Entities.Complaint", "Complaint")
+                        .WithMany("Images")
+                        .HasForeignKey("ComplaintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Complaint");
                 });
 
             modelBuilder.Entity("UrbanIssue.Domain.Entities.Notification", b =>
@@ -1023,6 +1213,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
                     b.Navigation("SLAConfigs");
                 });
 
+            modelBuilder.Entity("UrbanIssue.Domain.Entities.Complaint", b =>
+                {
+                    b.Navigation("Images");
+                });
+
             modelBuilder.Entity("UrbanIssue.Domain.Entities.Department", b =>
                 {
                     b.Navigation("Reports");
@@ -1035,6 +1230,8 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
             modelBuilder.Entity("UrbanIssue.Domain.Entities.Report", b =>
                 {
                     b.Navigation("Comments");
+
+                    b.Navigation("Complaints");
 
                     b.Navigation("Images");
 
@@ -1078,7 +1275,11 @@ namespace UrbanIssue.Infrastructure.Sqlserver.Persistence.Migrations
 
                     b.Navigation("ReopenedReports");
 
+                    b.Navigation("ResolvedComplaints");
+
                     b.Navigation("StatusUpdates");
+
+                    b.Navigation("SubmittedComplaints");
 
                     b.Navigation("Upvotes");
                 });
