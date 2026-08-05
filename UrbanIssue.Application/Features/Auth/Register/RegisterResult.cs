@@ -1,16 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
+namespace UrbanIssue.Application.Features.Auth.Register;
 
-namespace UrbanIssue.Application.Features.Auth.Register
-{
-    public sealed record RegisterResult(
+public sealed record RegisterResult(
     Guid UserId,
     string FullName,
     string Email,
     bool IsEmailVerified,
+    bool RequiresEmailVerification,
     string Role,
-    string AccessToken,
-    string RefreshToken,
-    DateTime RefreshTokenExpiresAt);
-}
+    string? AccessToken,
+    string? RefreshToken,
+    DateTime? RefreshTokenExpiresAt);
