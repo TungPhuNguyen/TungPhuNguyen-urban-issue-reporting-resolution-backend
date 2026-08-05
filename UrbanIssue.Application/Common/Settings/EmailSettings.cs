@@ -6,6 +6,8 @@ public sealed class EmailSettings
 
     public string Provider { get; init; } = "Development";
 
+    public bool RequireVerification { get; init; } = true;
+
     public string FrontendBaseUrl { get; init; } = "http://localhost:5173";
 
     public string FromAddress { get; init; } = "onboarding@resend.dev";
