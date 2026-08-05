@@ -180,18 +180,52 @@ builder.Services
         settings => settings.VerificationTokenLifetimeHours > 0
             && settings.PasswordResetTokenLifetimeMinutes > 0,
         "Thời hạn token email phải lớn hơn 0.")
+    .Validate(
+        settings =>
+            !settings.Provider.Equals(
+                "Gmail",
+                StringComparison.OrdinalIgnoreCase)
+            || (
+                !string.IsNullOrWhiteSpace(settings.SmtpHost)
+                && settings.SmtpPort > 0
+                && !string.IsNullOrWhiteSpace(settings.SmtpUsername)
+                && settings.SmtpAppPassword
+                    .Replace(" ", string.Empty)
+                    .Length >= 16),
+        "Gmail SMTP phải có SmtpHost, SmtpPort, "
+        + "SmtpUsername và SmtpAppPassword hợp lệ.")
     .ValidateOnStart();
-builder.Services.AddScoped<DevelopmentEmailService>();
-builder.Services.AddHttpClient<ResendEmailService>();
-builder.Services.AddScoped<IEmailService>(serviceProvider =>
-{
-    var provider = builder.Configuration["Email:Provider"]
-        ?? "Development";
 
-    return provider.Equals("Resend", StringComparison.OrdinalIgnoreCase)
-        ? serviceProvider.GetRequiredService<ResendEmailService>()
-        : serviceProvider.GetRequiredService<DevelopmentEmailService>();
-});
+builder.Services.AddScoped<DevelopmentEmailService>();
+builder.Services.AddScoped<GmailEmailService>();
+builder.Services.AddHttpClient<ResendEmailService>();
+
+builder.Services.AddScoped<IEmailService>(
+    serviceProvider =>
+    {
+        var provider =
+            builder.Configuration["Email:Provider"]
+            ?? "Development";
+
+        if (provider.Equals(
+                "Gmail",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return serviceProvider
+                .GetRequiredService<GmailEmailService>();
+        }
+
+        if (provider.Equals(
+                "Resend",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return serviceProvider
+                .GetRequiredService<ResendEmailService>();
+        }
+
+        return serviceProvider
+            .GetRequiredService<DevelopmentEmailService>();
+    });
 
 builder.Services.AddHostedService<
     AutoCloseResolvedReportsBackgroundService>();

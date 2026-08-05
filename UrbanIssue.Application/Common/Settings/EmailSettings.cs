@@ -16,6 +16,14 @@ public sealed class EmailSettings
 
     public string ResendApiKey { get; init; } = string.Empty;
 
+    public string SmtpHost { get; init; } = "smtp.gmail.com";
+
+    public int SmtpPort { get; init; } = 587;
+
+    public string SmtpUsername { get; init; } = string.Empty;
+
+    public string SmtpAppPassword { get; init; } = string.Empty;
+
     public int VerificationTokenLifetimeHours { get; init; } = 24;
 
     public int PasswordResetTokenLifetimeMinutes { get; init; } = 30;
