@@ -32,10 +32,13 @@ public sealed class GetStaffDashboardQueryHandler
     {
         var currentTime = DateTime.UtcNow;
 
-        var to = request.To ?? currentTime;
+        var to = (request.To ?? currentTime).Date;
+
         var from =
-            request.From
-            ?? to.AddDays(-DefaultRangeInDays);
+            (request.From
+             ?? to.AddDays(-DefaultRangeInDays)).Date;
+
+        var toExclusive = to.AddDays(1);
 
         var staffId = _currentUserService.UserId;
 
@@ -87,7 +90,7 @@ public sealed class GetStaffDashboardQueryHandler
             .Where(report =>
                 report.DepartmentId == departmentId
                 && report.CreatedAt >= from
-                && report.CreatedAt <= to)
+                && report.CreatedAt < toExclusive)
             .Select(report =>
                 new DashboardReportRow(
                     report.Status,
