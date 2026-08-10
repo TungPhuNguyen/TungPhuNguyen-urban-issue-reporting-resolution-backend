@@ -18,11 +18,21 @@ using UrbanIssue.Infrastructure.Sqlserver.Persistence.Seed;
 using UrbanIssue.API.Settings;
 using System.Threading.RateLimiting;
 using UrbanIssue.API.Common.ModelBinding;
-
+using Microsoft.AspNetCore.HttpOverrides;
 
 
 var builder =
     WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto;
+
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 const string AllowFrontendPolicy =
     "AllowFrontend";
@@ -137,16 +147,7 @@ builder.Services
 builder.Services.AddScoped<LocalFileStorageService>();
 builder.Services
     .AddOptions<CloudinarySettings>()
-    .Bind(
-        builder.Configuration.GetRequiredSection(
-            CloudinarySettings.SectionName))
-    .Validate(
-        settings =>
-            !string.IsNullOrWhiteSpace(settings.CloudName)
-            && !string.IsNullOrWhiteSpace(settings.ApiKey)
-            && !string.IsNullOrWhiteSpace(settings.ApiSecret),
-        "Cloudinary phải có CloudName, ApiKey và ApiSecret.")
-    .ValidateOnStart();
+    .Bind(builder.Configuration.GetRequiredSection(CloudinarySettings.SectionName));
 
 builder.Services.AddScoped<LocalFileStorageService>();
 builder.Services.AddScoped<CloudinaryFileStorageService>();
@@ -210,6 +211,8 @@ builder.Services.AddScoped<
 var app =
     builder.Build();
 
+app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     using var seedScope =
@@ -243,6 +246,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
     app.UseHttpsRedirection();
 }
+
 
 app.UseStaticFiles();
 
