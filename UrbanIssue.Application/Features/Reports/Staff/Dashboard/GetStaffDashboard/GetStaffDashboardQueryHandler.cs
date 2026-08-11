@@ -152,14 +152,21 @@ public sealed class GetStaffDashboardQueryHandler
                         Count: CountStatus(status)))
                 .ToList();
 
-        var trend = rows
+        var trendLookup = rows
             .GroupBy(row => row.CreatedAt.Date)
-            .OrderBy(group => group.Key)
-            .Select(group =>
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count());
+        
+        var trend = new List<StaffDashboardTrendItem>();
+        
+        for (var date = from; date <= to; date = date.AddDays(1))
+        {
+            trend.Add(
                 new StaffDashboardTrendItem(
-                    Date: group.Key,
-                    Count: group.Count()))
-            .ToList();
+                    Date: date,
+                    Count: trendLookup.GetValueOrDefault(date)));
+        }
 
         return new StaffDashboardResult(
             DepartmentId:
