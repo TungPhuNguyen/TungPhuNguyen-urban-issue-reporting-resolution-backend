@@ -17,8 +17,8 @@ public sealed class ReopenReportCommandValidator
             .MinimumLength(10)
             .WithMessage(
                 "Lý do mở lại báo cáo phải có ít nhất 10 ký tự.")
-            .MaximumLength(2000)
+            .MaximumLength(1000)
             .WithMessage(
-                "Lý do mở lại báo cáo không được vượt quá 2000 ký tự.");
+                "Lý do mở lại báo cáo không được vượt quá 1000 ký tự.");
     }
 }

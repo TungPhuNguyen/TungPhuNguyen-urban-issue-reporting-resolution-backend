@@ -21,8 +21,8 @@ public sealed class SubmitComplaintCommandValidator
             .WithMessage("Lý do khiếu nại không được vượt quá 2000 ký tự.");
 
         RuleFor(x => x.Images)
-            .Must(images => images.Count <= 5)
-            .WithMessage("Khiếu nại được tải lên tối đa 5 ảnh.");
+            .Must(images => images.Count is >= 1 and <= 5)
+            .WithMessage("Khiếu nại phải đính kèm ít nhất 1 ảnh và tối đa 5 ảnh.");
 
         RuleForEach(x => x.Images)
             .Must(IsValidImage)

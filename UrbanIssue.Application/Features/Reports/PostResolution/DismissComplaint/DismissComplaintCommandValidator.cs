@@ -21,9 +21,9 @@ public sealed class DismissComplaintCommandValidator
             .WithMessage(
                 "Lý do không chấp nhận khiếu nại "
                 + "phải có ít nhất 10 ký tự.")
-            .MaximumLength(2000)
+            .MaximumLength(1000)
             .WithMessage(
                 "Lý do không chấp nhận khiếu nại "
-                + "không được vượt quá 2000 ký tự.");
+                + "không được vượt quá 1000 ký tự.");
     }
 }
