@@ -111,7 +111,7 @@ public sealed class SubmitComplaintCommandHandler
             report.UpdatedAt = currentTime;
 
             _dbContext.Complaints.Add(complaint);
-            _dbContext.StatusUpdates.Add(new StatusUpdate
+            var statusUpdate = new StatusUpdate
             {
                 ReportId = report.Id,
                 UpdatedByUserId = citizenId,
@@ -120,7 +120,17 @@ public sealed class SubmitComplaintCommandHandler
                 EventType = TimelineEventType.ComplaintSubmitted,
                 Note = $"Citizen đã gửi khiếu nại: {reason}",
                 CreatedAt = currentTime
-            });
+            };
+
+            foreach (var complaintImage in complaint.Images)
+            {
+                statusUpdate.Images.Add(new StatusUpdateImage
+                {
+                    ImageUrl = complaintImage.ImageUrl
+                });
+            }
+            
+            _dbContext.StatusUpdates.Add(statusUpdate);
 
             _auditLogService.Add(
                 citizenId,
