@@ -536,3 +536,20 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/dotnetcore,visualstudio,aspnetcore
+
+UrbanIssue.API/wwwroot/uploads/*
+!UrbanIssue.API/wwwroot/uploads/.gitkeep
+
+# UrbanIssue local configuration and runtime artifacts
+.env
+.env.*
+!.env.example
+appsettings.Production.json
+*.patch
+*.Backup.tmp
+TestResults/
+
+# Runtime report uploads; keep directory placeholders only
+UrbanIssue.API/wwwroot/reports/
+UrbanIssue.API/wwwroot/uploads/reports/
+

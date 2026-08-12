@@ -3,4 +3,5 @@
   <Project Path="UrbanIssue.Application/UrbanIssue.Application.csproj" />
   <Project Path="UrbanIssue.Domain/UrbanIssue.Domain.csproj" />
   <Project Path="UrbanIssue.Infrastructure.Sqlserver/UrbanIssue.Infrastructure.Sqlserver.csproj" />
+  <Project Path="tests/UrbanIssue.Application.Tests/UrbanIssue.Application.Tests.csproj" />
 </Solution>

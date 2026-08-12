@@ -1,4 +1,17 @@
-# Infrastructure.Sqlserver
+# UrbanIssue.Infrastructure.Sqlserver
 
-Đặt EF Core DbContext, persistence model, configuration, repository, migration, seed data, external service và background job tại đây.
-Hiện chưa có code nghiệp vụ.
+Infrastructure layer triển khai EF Core SQL Server và các service kỹ thuật.
+
+- `ApplicationDbContext`
+- Fluent API configurations
+- Migrations và development seeder
+- JWT, refresh token và password hashing
+- Notification và AuditLog persistence
+
+Chạy migration từ thư mục solution:
+
+```powershell
+dotnet ef database update `
+  --project UrbanIssue.Infrastructure.Sqlserver `
+  --startup-project UrbanIssue.API
+```

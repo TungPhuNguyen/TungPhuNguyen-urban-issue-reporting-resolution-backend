@@ -1,5 +1,68 @@
-@UrbanIssue_API_HostAddress = http://localhost:5180
+@host = https://localhost:7123
 
-### OpenAPI document
-GET {{UrbanIssue_API_HostAddress}}/openapi/v1.json
-Accept: application/json
+### 1. Register Citizen
+
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn A",
+  "email": "nguyenvana@gmail.com",
+  "password": "Password@123",
+  "confirmPassword": "Password@123",
+  "phoneNumber": "0912345678"
+}
+
+###
+
+### 2. Login
+
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "nguyenvana@gmail.com",
+  "password": "Password@123"
+}
+
+###
+
+### 3. Test email bị trùng
+
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn B",
+  "email": "nguyenvana@gmail.com",
+  "password": "Password@123",
+  "confirmPassword": "Password@123",
+  "phoneNumber": "0987654321"
+}
+
+###
+
+### 4. Test sai mật khẩu
+
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "nguyenvana@gmail.com",
+  "password": "SaiMatKhau@123"
+}
+
+###
+
+### 5. Test validation
+
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "",
+  "email": "sai-email",
+  "password": "123",
+  "confirmPassword": "456",
+  "phoneNumber": ""
+}

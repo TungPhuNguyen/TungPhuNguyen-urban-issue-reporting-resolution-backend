@@ -1,4 +1,8 @@
-# Application
+# UrbanIssue.Application
 
-Đặt command/query/handler, validator, DTO, mapping và application abstraction tại đây.
-Hiện chưa có code nghiệp vụ.
+Application layer chứa use case CQRS/MediatR, validator và abstraction.
+
+- Command/query theo từng feature.
+- FluentValidation qua pipeline behavior.
+- Không phụ thuộc ASP.NET Core presentation.
+- Persistence, authentication, storage, notification và audit được truy cập qua interface.

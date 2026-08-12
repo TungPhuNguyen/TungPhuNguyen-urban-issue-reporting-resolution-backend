@@ -1,4 +1,10 @@
-# Domain
+# UrbanIssue.Domain
 
-Đặt entity, enum, value object, domain event, domain exception và abstraction tại đây.
-Hiện chưa có code nghiệp vụ.
+Domain layer chứa entity và enum nghiệp vụ, không phụ thuộc project khác.
+
+Các nhóm chính:
+
+- Identity: `Role`, `User`, `RefreshToken`
+- Catalog: `Category`, `Area`, `Department`, `RoutingRule`, `SLAConfig`
+- Report lifecycle: `Report`, `ReportImage`, `StatusUpdate`, `StatusUpdateImage`
+- Interaction: `Upvote`, `Comment`, `Notification`, `AuditLog`
